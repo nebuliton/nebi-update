@@ -21,6 +21,16 @@ import java.util.Scanner;
 public final class ConsoleCommandLoop implements AutoCloseable {
     private static final Logger LOGGER = LoggerFactory.getLogger(ConsoleCommandLoop.class);
     private static final DateTimeFormatter DATETIME_FORMAT = DateTimeFormatter.ofPattern("dd.MM.yyyy HH:mm");
+    private static final String ANSI_RESET = "\u001B[0m";
+    private static final String ANSI_BOLD = "\u001B[1m";
+    private static final String ANSI_DIM = "\u001B[2m";
+    private static final String ANSI_RED = "\u001B[31m";
+    private static final String ANSI_GREEN = "\u001B[32m";
+    private static final String ANSI_YELLOW = "\u001B[33m";
+    private static final String ANSI_BLUE = "\u001B[34m";
+    private static final String ANSI_MAGENTA = "\u001B[35m";
+    private static final String ANSI_CYAN = "\u001B[36m";
+    private static final String ANSI_GRAY = "\u001B[90m";
 
     private final ConfigService configService;
     private final UpdateRepository updateRepository;
@@ -28,6 +38,7 @@ public final class ConsoleCommandLoop implements AutoCloseable {
     private final DiscordGateway discordGateway;
     private final Map<String, CommandSpec> commandIndex = new LinkedHashMap<>();
     private final List<CommandSpec> commandList = new ArrayList<>();
+    private final boolean ansiEnabled;
 
     private volatile boolean running = true;
     private Thread worker;
@@ -42,6 +53,7 @@ public final class ConsoleCommandLoop implements AutoCloseable {
         this.updateRepository = updateRepository;
         this.weekService = weekService;
         this.discordGateway = discordGateway;
+        this.ansiEnabled = resolveAnsiEnabled();
         registerCommands();
     }
 
@@ -55,8 +67,14 @@ public final class ConsoleCommandLoop implements AutoCloseable {
 
     private void runLoop() {
         try (Scanner scanner = new Scanner(System.in)) {
-            while (running && scanner.hasNextLine()) {
-                String line = scanner.nextLine().trim();
+            while (running) {
+                printPrompt();
+                if (!scanner.hasNextLine()) {
+                    break;
+                }
+                String rawLine = scanner.nextLine();
+                hideEchoedInputLine(rawLine);
+                String line = rawLine.trim();
                 if (line.isBlank()) {
                     continue;
                 }
@@ -316,27 +334,30 @@ public final class ConsoleCommandLoop implements AutoCloseable {
     }
 
     private void printConsoleHeader() {
-        printSection("NebiUpdate Konsole");
-        System.out.println("Tippe 'help' für Befehle.");
+        String headline = style("NebiUpdate Konsole", ANSI_BOLD + ANSI_CYAN);
+        String subline = style("Tippe 'help' für Befehle.", ANSI_DIM + ANSI_GRAY);
+        printSection(headline);
+        System.out.println(subline);
+        System.out.println();
     }
 
     private void printSection(String title) {
         String line = "=".repeat(Math.max(18, title.length() + 6));
-        System.out.println(line);
+        System.out.println(style(line, ANSI_DIM + ANSI_GRAY));
         System.out.println("  " + title);
-        System.out.println(line);
+        System.out.println(style(line, ANSI_DIM + ANSI_GRAY));
     }
 
     private void printInfo(String message) {
-        System.out.println("[INFO] " + message);
+        System.out.println(tag("INFO", ANSI_BLUE) + " " + message);
     }
 
     private void printSuccess(String message) {
-        System.out.println("[OK]   " + message);
+        System.out.println(tag("OK", ANSI_GREEN) + " " + message);
     }
 
     private void printError(String message) {
-        System.out.println("[ERR]  " + message);
+        System.out.println(tag("ERR", ANSI_RED) + " " + message);
     }
 
     private String emptyAs(String value, String fallback) {
@@ -344,6 +365,46 @@ public final class ConsoleCommandLoop implements AutoCloseable {
             return fallback;
         }
         return value;
+    }
+
+    private void printPrompt() {
+        String prefix = style("[NebiUpdate]", ANSI_BOLD + ANSI_MAGENTA);
+        String arrow = style(" >", ANSI_CYAN);
+        System.out.print(prefix + arrow + " ");
+        System.out.flush();
+    }
+
+    private void hideEchoedInputLine(String rawLine) {
+        if (!ansiEnabled) {
+            return;
+        }
+        if (rawLine == null) {
+            return;
+        }
+        // Move one line up (entered command) and clear it for a cleaner command UI.
+        System.out.print("\u001B[1A\u001B[2K\r");
+        System.out.flush();
+    }
+
+    private boolean resolveAnsiEnabled() {
+        String ansiProperty = System.getProperty("terminal.ansi", "").trim().toLowerCase(Locale.ROOT);
+        if (ansiProperty.equals("true") || ansiProperty.equals("1") || ansiProperty.equals("yes") || ansiProperty.equals("on")) {
+            return true;
+        }
+        String os = System.getProperty("os.name", "").toLowerCase(Locale.ROOT);
+        return !os.contains("win");
+    }
+
+    private String tag(String label, String color) {
+        String padded = "[" + label + "]";
+        return style(padded, ANSI_BOLD + color);
+    }
+
+    private String style(String text, String color) {
+        if (!ansiEnabled) {
+            return text;
+        }
+        return color + text + ANSI_RESET;
     }
 
     @Override
