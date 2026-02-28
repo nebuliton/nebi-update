@@ -7,6 +7,7 @@ import dev.eministar.nebiupdate.data.UpdateRepository;
 import dev.eministar.nebiupdate.data.UpdateType;
 import dev.eministar.nebiupdate.discord.DiscordGateway;
 import dev.eministar.nebiupdate.discord.WeeklyMessageRenderer;
+import dev.eministar.nebiupdate.logging.ErrorLogger;
 import dev.eministar.nebiupdate.time.WeekService;
 import dev.eministar.nebiupdate.time.WeekWindow;
 import io.javalin.Javalin;
@@ -202,8 +203,11 @@ public final class DashboardServer implements AutoCloseable {
         });
 
         app.exception(Exception.class, (ex, ctx) -> {
-            LOGGER.error("Dashboard request failed", ex);
-            ctx.status(HttpStatus.INTERNAL_SERVER_ERROR).json(Map.of("error", ex.getMessage()));
+            String errorId = ErrorLogger.capture(LOGGER, "DASHBOARD_API", "Dashboard request failed", ex);
+            ctx.status(HttpStatus.INTERNAL_SERVER_ERROR).json(Map.of(
+                    "error", "Interner Serverfehler",
+                    "error_id", errorId
+            ));
         });
 
         try {

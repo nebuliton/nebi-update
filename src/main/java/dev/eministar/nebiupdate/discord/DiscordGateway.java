@@ -4,6 +4,7 @@ import dev.eministar.nebiupdate.config.BotConfig;
 import dev.eministar.nebiupdate.config.ConfigService;
 import dev.eministar.nebiupdate.data.UpdateEntry;
 import dev.eministar.nebiupdate.data.UpdateRepository;
+import dev.eministar.nebiupdate.logging.ErrorLogger;
 import dev.eministar.nebiupdate.time.WeekService;
 import dev.eministar.nebiupdate.time.WeekWindow;
 import net.dv8tion.jda.api.JDA;
@@ -35,6 +36,7 @@ public final class DiscordGateway implements AutoCloseable {
     private final WeekService weekService;
     private final WeeklyMessageRenderer renderer;
     private final ExecutorService worker;
+    private final ExecutorService commandWorker;
 
     private JDA jda;
 
@@ -55,11 +57,16 @@ public final class DiscordGateway implements AutoCloseable {
             thread.setDaemon(true);
             return thread;
         });
+        this.commandWorker = Executors.newFixedThreadPool(2, r -> {
+            Thread thread = new Thread(r, "discord-command-worker");
+            thread.setDaemon(true);
+            return thread;
+        });
     }
 
     public void start() throws InterruptedException {
         jda = JDABuilder.createDefault(token)
-                .addEventListeners(new UpdateCommandListener(this, configService, weekService, updateRepository, renderer))
+                .addEventListeners(new UpdateCommandListener(this, configService, weekService, updateRepository, renderer, commandWorker))
                 .build();
         jda.awaitReady();
         registerSlashCommands();
@@ -151,7 +158,7 @@ public final class DiscordGateway implements AutoCloseable {
                     .complete();
             LOGGER.info("Sent test weekly message {} for {}", message.getId(), week.start());
         } catch (Exception ex) {
-            LOGGER.error("Failed to send test weekly message for {}", week.start(), ex);
+            ErrorLogger.capture(LOGGER, "DISCORD_TEST", ex, "Failed to send test weekly message for {}", week.start());
         }
     }
 
@@ -190,12 +197,12 @@ public final class DiscordGateway implements AutoCloseable {
                 return;
             } catch (ErrorResponseException ex) {
                 if (ex.getErrorResponse() != ErrorResponse.UNKNOWN_MESSAGE) {
-                    LOGGER.error("Failed to edit weekly message {}", messageId, ex);
+                    ErrorLogger.capture(LOGGER, "DISCORD_SYNC", ex, "Failed to edit weekly message {}", messageId);
                     return;
                 }
                 LOGGER.warn("Stored weekly message {} no longer exists, creating a new one", messageId);
             } catch (Exception ex) {
-                LOGGER.error("Failed to edit weekly message {}", messageId, ex);
+                ErrorLogger.capture(LOGGER, "DISCORD_SYNC", ex, "Failed to edit weekly message {}", messageId);
                 return;
             }
         }
@@ -214,7 +221,7 @@ public final class DiscordGateway implements AutoCloseable {
             updateRepository.upsertWeeklyMessage(week.start(), channel.getId(), created.getId());
             LOGGER.info("Created weekly message {} for {}", created.getId(), week.start());
         } catch (Exception ex) {
-            LOGGER.error("Failed to create weekly message for {}", week.start(), ex);
+            ErrorLogger.capture(LOGGER, "DISCORD_SYNC", ex, "Failed to create weekly message for {}", week.start());
         }
     }
 
@@ -225,6 +232,7 @@ public final class DiscordGateway implements AutoCloseable {
     @Override
     public void close() {
         worker.shutdownNow();
+        commandWorker.shutdownNow();
         if (jda != null) {
             jda.shutdown();
         }

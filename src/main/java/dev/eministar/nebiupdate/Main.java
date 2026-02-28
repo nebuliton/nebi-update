@@ -8,6 +8,7 @@ import dev.eministar.nebiupdate.console.ConsoleCommandLoop;
 import dev.eministar.nebiupdate.data.Database;
 import dev.eministar.nebiupdate.data.UpdateRepository;
 import dev.eministar.nebiupdate.discord.DiscordGateway;
+import dev.eministar.nebiupdate.runtime.SingleInstanceLock;
 import dev.eministar.nebiupdate.discord.WeeklyMessageRenderer;
 import dev.eministar.nebiupdate.scheduler.WeeklyScheduler;
 import dev.eministar.nebiupdate.time.WeekService;
@@ -26,6 +27,7 @@ public final class Main {
 
     public static void main(String[] args) throws Exception {
         printBootScreen();
+        SingleInstanceLock instanceLock = SingleInstanceLock.acquire(Path.of("data", "nebiupdate.lock"));
 
         String configPath = "config.yml";
         YamlConfigManager yamlConfigManager = new YamlConfigManager(Path.of(configPath));
@@ -67,6 +69,7 @@ public final class Main {
             closeQuietly(dashboardServer);
             closeQuietly(discordGateway);
             closeQuietly(database);
+            closeQuietly(instanceLock);
         }, "shutdown-hook"));
 
         discordGateway.start();

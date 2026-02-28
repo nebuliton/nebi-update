@@ -5,6 +5,7 @@ import dev.eministar.nebiupdate.config.ConfigService;
 import dev.eministar.nebiupdate.data.UpdateEntry;
 import dev.eministar.nebiupdate.data.UpdateRepository;
 import dev.eministar.nebiupdate.data.UpdateType;
+import dev.eministar.nebiupdate.logging.ErrorLogger;
 import dev.eministar.nebiupdate.time.WeekService;
 import dev.eministar.nebiupdate.time.WeekWindow;
 import net.dv8tion.jda.api.events.interaction.command.SlashCommandInteractionEvent;
@@ -16,6 +17,8 @@ import org.slf4j.LoggerFactory;
 
 import java.util.List;
 import java.util.Optional;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.RejectedExecutionException;
 
 public final class UpdateCommandListener extends ListenerAdapter {
     private static final Logger LOGGER = LoggerFactory.getLogger(UpdateCommandListener.class);
@@ -26,19 +29,22 @@ public final class UpdateCommandListener extends ListenerAdapter {
     private final WeekService weekService;
     private final UpdateRepository updateRepository;
     private final WeeklyMessageRenderer renderer;
+    private final ExecutorService commandWorker;
 
     public UpdateCommandListener(
             DiscordGateway discordGateway,
             ConfigService configService,
             WeekService weekService,
             UpdateRepository updateRepository,
-            WeeklyMessageRenderer renderer
+            WeeklyMessageRenderer renderer,
+            ExecutorService commandWorker
     ) {
         this.discordGateway = discordGateway;
         this.configService = configService;
         this.weekService = weekService;
         this.updateRepository = updateRepository;
         this.renderer = renderer;
+        this.commandWorker = commandWorker;
     }
 
     @Override
@@ -48,7 +54,10 @@ public final class UpdateCommandListener extends ListenerAdapter {
         }
         String subcommand = event.getSubcommandName();
         if (subcommand == null) {
-            event.reply("Unbekannter Subcommand.").setEphemeral(true).queue();
+            event.reply("Unbekannter Subcommand.").setEphemeral(true).queue(
+                    null,
+                    failure -> LOGGER.warn("Konnte Antwort für unbekannten Subcommand nicht senden", failure)
+            );
             return;
         }
 
@@ -59,7 +68,10 @@ public final class UpdateCommandListener extends ListenerAdapter {
             case "list" -> handleDeferred(event, () -> onList(event));
             case "sync" -> handleDeferred(event, this::onSync);
             case "test" -> handleDeferred(event, this::onTest);
-            default -> event.reply("Unbekannter Subcommand.").setEphemeral(true).queue();
+            default -> event.reply("Unbekannter Subcommand.").setEphemeral(true).queue(
+                    null,
+                    failure -> LOGGER.warn("Konnte Antwort für Subcommand {} nicht senden", subcommand, failure)
+            );
         }
     }
 
@@ -200,9 +212,22 @@ public final class UpdateCommandListener extends ListenerAdapter {
     private void handleDeferred(SlashCommandInteractionEvent event, CommandAction action) {
         String subcommand = event.getSubcommandName();
         event.deferReply(true).queue(
-                hook -> sendDeferredResponse(hook, subcommand, action),
+                hook -> runDeferredAction(hook, subcommand, action),
                 failure -> LOGGER.warn("Konnte /update {} nicht rechtzeitig bestätigen", subcommand, failure)
         );
+    }
+
+    private void runDeferredAction(InteractionHook hook, String subcommand, CommandAction action) {
+        try {
+            commandWorker.submit(() -> sendDeferredResponse(hook, subcommand, action));
+        } catch (RejectedExecutionException ex) {
+            LOGGER.warn("Command-Worker ist ausgelastet, /update {} wird verworfen", subcommand, ex);
+            hook.sendMessage("❌ Der Bot ist gerade ausgelastet. Bitte versuche es erneut.")
+                    .queue(
+                            null,
+                            failure -> LOGGER.warn("Konnte Auslastungs-Meldung für /update {} nicht senden", subcommand, failure)
+                    );
+        }
     }
 
     private void sendDeferredResponse(InteractionHook hook, String subcommand, CommandAction action) {
@@ -210,8 +235,8 @@ public final class UpdateCommandListener extends ListenerAdapter {
         try {
             response = action.execute();
         } catch (Exception ex) {
-            LOGGER.error("Fehler bei /update {}", subcommand, ex);
-            response = "❌ Interner Fehler beim Verarbeiten des Befehls.";
+            String errorId = ErrorLogger.capture(LOGGER, "UPDATE_CMD", ex, "Fehler bei /update {}", subcommand);
+            response = "❌ Interner Fehler beim Verarbeiten des Befehls. Fehler-ID: `" + errorId + "`";
         }
 
         hook.sendMessage(truncate(response, 1800)).queue(

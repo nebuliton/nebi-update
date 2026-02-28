@@ -4,6 +4,7 @@ import dev.eministar.nebiupdate.config.BotConfig;
 import dev.eministar.nebiupdate.config.ConfigService;
 import dev.eministar.nebiupdate.data.UpdateRepository;
 import dev.eministar.nebiupdate.discord.DiscordGateway;
+import dev.eministar.nebiupdate.logging.ErrorLogger;
 import dev.eministar.nebiupdate.time.WeekService;
 import dev.eministar.nebiupdate.time.WeekWindow;
 import org.slf4j.Logger;
@@ -62,7 +63,7 @@ public final class WeeklyScheduler implements AutoCloseable {
             LOGGER.info("Schedule reached for week {}, creating initial weekly message", week.start());
             discordGateway.requestSyncCurrentWeek(false);
         } catch (Exception ex) {
-            LOGGER.error("Scheduler tick failed", ex);
+            ErrorLogger.capture(LOGGER, "SCHEDULER", "Scheduler tick failed", ex);
         }
     }
 

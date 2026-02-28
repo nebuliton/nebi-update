@@ -4,6 +4,7 @@ import dev.eministar.nebiupdate.config.BotConfig;
 import dev.eministar.nebiupdate.config.ConfigService;
 import dev.eministar.nebiupdate.data.UpdateRepository;
 import dev.eministar.nebiupdate.discord.DiscordGateway;
+import dev.eministar.nebiupdate.logging.ErrorLogger;
 import dev.eministar.nebiupdate.time.WeekService;
 import dev.eministar.nebiupdate.time.WeekWindow;
 import org.slf4j.Logger;
@@ -51,7 +52,7 @@ public final class ConsoleCommandLoop implements AutoCloseable {
                 handleCommand(line);
             }
         } catch (Exception ex) {
-            LOGGER.error("Console loop stopped due to error", ex);
+            ErrorLogger.capture(LOGGER, "CONSOLE", "Console loop stopped due to error", ex);
         }
     }
 
