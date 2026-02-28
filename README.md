@@ -30,6 +30,26 @@ NebiUpdate ist ein moderner Discord-Bot für automatisierte Wochen-Changelogs mi
 
 ---
 
+## 🎨 Dashboard-Frontend (React + TypeScript)
+
+Das Dashboard wird aus `frontend/` gebaut und nach `src/main/resources/dashboard` ausgegeben.
+
+1. Dependencies installieren:
+   ```powershell
+   cd frontend
+   npm install
+   ```
+2. Development-Server starten:
+   ```powershell
+   npm run dev
+   ```
+3. Produktions-Build erzeugen (für JAR-Output):
+   ```powershell
+   npm run build
+   ```
+
+---
+
 ## ⚙️ Wichtige Konfigurationsfelder
 
 - `guild_id`: Optional, für guild-spezifische Slash-Commands

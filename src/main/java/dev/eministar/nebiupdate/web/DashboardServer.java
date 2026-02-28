@@ -11,6 +11,7 @@ import dev.eministar.nebiupdate.time.WeekService;
 import dev.eministar.nebiupdate.time.WeekWindow;
 import io.javalin.Javalin;
 import io.javalin.http.HttpStatus;
+import io.javalin.http.staticfiles.Location;
 import io.javalin.util.JavalinBindException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -57,6 +58,7 @@ public final class DashboardServer implements AutoCloseable {
 
         app = Javalin.create(javalinConfig -> {
             javalinConfig.showJavalinBanner = false;
+            javalinConfig.staticFiles.add("/dashboard", Location.CLASSPATH);
             javalinConfig.router.apiBuilder(() -> {
             });
         });
