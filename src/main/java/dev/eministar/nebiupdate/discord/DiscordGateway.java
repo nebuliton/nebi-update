@@ -9,10 +9,12 @@ import dev.eministar.nebiupdate.time.WeekService;
 import dev.eministar.nebiupdate.time.WeekWindow;
 import net.dv8tion.jda.api.JDA;
 import net.dv8tion.jda.api.JDABuilder;
+import net.dv8tion.jda.api.Permission;
 import net.dv8tion.jda.api.entities.Guild;
 import net.dv8tion.jda.api.entities.Message;
 import net.dv8tion.jda.api.entities.channel.concrete.TextChannel;
 import net.dv8tion.jda.api.exceptions.ErrorResponseException;
+import net.dv8tion.jda.api.interactions.commands.DefaultMemberPermissions;
 import net.dv8tion.jda.api.interactions.commands.OptionType;
 import net.dv8tion.jda.api.interactions.commands.build.CommandData;
 import net.dv8tion.jda.api.interactions.commands.build.Commands;
@@ -114,6 +116,7 @@ public final class DiscordGateway implements AutoCloseable {
         SubcommandData test = new SubcommandData("test", "🧪 Test-Nachricht senden (ohne Wochenpost zu speichern)");
 
         return Commands.slash("update", "🎮 Wochenupdates verwalten")
+                .setDefaultPermissions(DefaultMemberPermissions.enabledFor(Permission.ADMINISTRATOR))
                 .addSubcommands(add, edit, remove, list, sync, test);
     }
 

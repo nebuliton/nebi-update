@@ -8,6 +8,8 @@ import dev.eministar.nebiupdate.data.UpdateType;
 import dev.eministar.nebiupdate.logging.ErrorLogger;
 import dev.eministar.nebiupdate.time.WeekService;
 import dev.eministar.nebiupdate.time.WeekWindow;
+import net.dv8tion.jda.api.Permission;
+import net.dv8tion.jda.api.entities.Member;
 import net.dv8tion.jda.api.events.interaction.command.SlashCommandInteractionEvent;
 import net.dv8tion.jda.api.hooks.ListenerAdapter;
 import net.dv8tion.jda.api.interactions.InteractionHook;
@@ -50,6 +52,15 @@ public final class UpdateCommandListener extends ListenerAdapter {
     @Override
     public void onSlashCommandInteraction(SlashCommandInteractionEvent event) {
         if (!"update".equals(event.getName())) {
+            return;
+        }
+        if (!isAdmin(event)) {
+            event.reply("❌ Nur Administratoren dürfen diesen Befehl verwenden.")
+                    .setEphemeral(true)
+                    .queue(
+                            null,
+                            failure -> LOGGER.warn("Konnte Antwort für fehlende Admin-Rechte nicht senden", failure)
+                    );
             return;
         }
         String subcommand = event.getSubcommandName();
@@ -207,6 +218,11 @@ public final class UpdateCommandListener extends ListenerAdapter {
             return text;
         }
         return text.substring(0, maxChars - 3) + "...";
+    }
+
+    private boolean isAdmin(SlashCommandInteractionEvent event) {
+        Member member = event.getMember();
+        return member != null && member.hasPermission(Permission.ADMINISTRATOR);
     }
 
     private void handleDeferred(SlashCommandInteractionEvent event, CommandAction action) {
