@@ -58,156 +58,152 @@ public final class DashboardServer implements AutoCloseable {
         BotConfig config = configService.get();
 
         app = Javalin.create(javalinConfig -> {
-            javalinConfig.showJavalinBanner = false;
+            javalinConfig.startup.showJavalinBanner = false;
             javalinConfig.staticFiles.add("/dashboard", Location.CLASSPATH);
-            javalinConfig.router.apiBuilder(() -> {
-            });
-        });
+            if (!dashboardToken.isBlank()) {
+                javalinConfig.routes.before("/api/*", ctx -> {
+                    String provided = Optional.ofNullable(ctx.header("X-Dashboard-Token")).orElse("");
+                    if (!dashboardToken.equals(provided)) {
+                        ctx.status(HttpStatus.UNAUTHORIZED).result("Unauthorized");
+                    }
+                });
+            }
 
-        if (!dashboardToken.isBlank()) {
-            app.before("/api/*", ctx -> {
-                String provided = Optional.ofNullable(ctx.header("X-Dashboard-Token")).orElse("");
-                if (!dashboardToken.equals(provided)) {
-                    ctx.status(HttpStatus.UNAUTHORIZED).result("Unauthorized");
+            javalinConfig.routes.get("/", ctx -> ctx.html(dashboardHtml));
+            javalinConfig.routes.get("/health", ctx -> ctx.result("ok"));
+
+            javalinConfig.routes.get("/api/status", ctx -> {
+                BotConfig current = configService.get();
+                WeekWindow week = weekService.currentWeek(current);
+                Map<String, Object> payload = new LinkedHashMap<>();
+                payload.put("connected", discordGateway.isConnected());
+                payload.put("weekLabel", week.label());
+                payload.put("weekStart", week.start().toString());
+                payload.put("weekEnd", week.end().toString());
+                payload.put("updateCount", updateRepository.countByWeek(week.start()));
+                payload.put("channelId", current.channelId());
+                payload.put("guildId", current.guildId());
+                payload.put("scheduleDay", current.scheduleDay());
+                payload.put("scheduleTime", current.scheduleTime());
+                payload.put("timezone", current.timezone());
+                ctx.json(payload);
+            });
+            javalinConfig.routes.get("/api/config", ctx -> ctx.json(configService.get().toMap()));
+            javalinConfig.routes.put("/api/config", ctx -> {
+                Map<String, Object> body = ctx.bodyAsClass(Map.class);
+                BotConfig updated = configService.updateFromMap(body);
+                discordGateway.registerSlashCommands();
+                ctx.json(updated.toMap());
+            });
+
+            javalinConfig.routes.get("/api/updates/current", ctx -> {
+                BotConfig current = configService.get();
+                WeekWindow week = weekService.currentWeek(current);
+                List<UpdateEntry> entries = updateRepository.findByWeek(week.start());
+                ctx.json(entries.stream().map(this::toUpdateMap).toList());
+            });
+
+            javalinConfig.routes.post("/api/updates/current", ctx -> {
+                Map<String, Object> body = ctx.bodyAsClass(Map.class);
+                String typeRaw = toStringSafe(body.get("type"));
+                String text = toStringSafe(body.get("text")).trim();
+                if (text.isBlank()) {
+                    ctx.status(HttpStatus.BAD_REQUEST).json(Map.of("error", "Text ist erforderlich"));
+                    return;
                 }
-            });
-        }
-
-        app.get("/", ctx -> ctx.html(dashboardHtml));
-        app.get("/health", ctx -> ctx.result("ok"));
-
-        app.get("/api/status", ctx -> {
-            BotConfig current = configService.get();
-            WeekWindow week = weekService.currentWeek(current);
-            Map<String, Object> payload = new LinkedHashMap<>();
-            payload.put("connected", discordGateway.isConnected());
-            payload.put("weekLabel", week.label());
-            payload.put("weekStart", week.start().toString());
-            payload.put("weekEnd", week.end().toString());
-            payload.put("updateCount", updateRepository.countByWeek(week.start()));
-            payload.put("channelId", current.channelId());
-            payload.put("guildId", current.guildId());
-            payload.put("scheduleDay", current.scheduleDay());
-            payload.put("scheduleTime", current.scheduleTime());
-            payload.put("timezone", current.timezone());
-            ctx.json(payload);
-        });
-
-        app.get("/api/config", ctx -> ctx.json(configService.get().toMap()));
-        app.put("/api/config", ctx -> {
-            Map<String, Object> body = ctx.bodyAsClass(Map.class);
-            BotConfig updated = configService.updateFromMap(body);
-            discordGateway.registerSlashCommands();
-            ctx.json(updated.toMap());
-        });
-
-        app.get("/api/updates/current", ctx -> {
-            BotConfig current = configService.get();
-            WeekWindow week = weekService.currentWeek(current);
-            List<UpdateEntry> entries = updateRepository.findByWeek(week.start());
-            ctx.json(entries.stream().map(this::toUpdateMap).toList());
-        });
-
-        app.post("/api/updates/current", ctx -> {
-            Map<String, Object> body = ctx.bodyAsClass(Map.class);
-            String typeRaw = toStringSafe(body.get("type"));
-            String text = toStringSafe(body.get("text")).trim();
-            if (text.isBlank()) {
-                ctx.status(HttpStatus.BAD_REQUEST).json(Map.of("error", "Text ist erforderlich"));
-                return;
-            }
-            Optional<UpdateType> parsedType = UpdateType.fromKey(typeRaw);
-            if (parsedType.isEmpty()) {
-                ctx.status(HttpStatus.BAD_REQUEST).json(Map.of("error", "Ungültiger Typ"));
-                return;
-            }
-
-            BotConfig current = configService.get();
-            WeekWindow week = weekService.currentWeek(current);
-            String author = toStringSafe(body.get("author")).trim();
-            if (author.isBlank()) {
-                author = "Dashboard";
-            }
-            UpdateEntry created = updateRepository.create(week.start(), parsedType.get(), text, author);
-            discordGateway.requestSyncCurrentWeek(true);
-            ctx.status(HttpStatus.CREATED).json(toUpdateMap(created));
-        });
-
-        app.put("/api/updates/current/{id}", ctx -> {
-            long id = Long.parseLong(ctx.pathParam("id"));
-            Map<String, Object> body = ctx.bodyAsClass(Map.class);
-            BotConfig current = configService.get();
-            WeekWindow week = weekService.currentWeek(current);
-
-            Optional<UpdateEntry> existingOpt = updateRepository.findByIdInWeek(id, week.start());
-            if (existingOpt.isEmpty()) {
-                ctx.status(HttpStatus.NOT_FOUND).json(Map.of("error", "Eintrag nicht gefunden"));
-                return;
-            }
-            UpdateEntry existing = existingOpt.get();
-
-            String typeRaw = toStringSafe(body.get("type"));
-            String textRaw = toStringSafe(body.get("text")).trim();
-            String authorRaw = toStringSafe(body.get("author")).trim();
-
-            UpdateType type = existing.type();
-            if (!typeRaw.isBlank()) {
-                Optional<UpdateType> parsed = UpdateType.fromKey(typeRaw);
-                if (parsed.isEmpty()) {
+                Optional<UpdateType> parsedType = UpdateType.fromKey(typeRaw);
+                if (parsedType.isEmpty()) {
                     ctx.status(HttpStatus.BAD_REQUEST).json(Map.of("error", "Ungültiger Typ"));
                     return;
                 }
-                type = parsed.get();
-            }
 
-            String content = textRaw.isBlank() ? existing.content() : textRaw;
-            String author = authorRaw.isBlank() ? "Dashboard" : authorRaw;
-            boolean updated = updateRepository.updateInWeek(id, week.start(), type, content, author);
-            if (!updated) {
-                ctx.status(HttpStatus.INTERNAL_SERVER_ERROR).json(Map.of("error", "Aktualisierung fehlgeschlagen"));
-                return;
-            }
-            discordGateway.requestSyncCurrentWeek(true);
-            UpdateEntry refreshed = updateRepository.findByIdInWeek(id, week.start()).orElse(existing);
-            ctx.json(toUpdateMap(refreshed));
-        });
+                BotConfig current = configService.get();
+                WeekWindow week = weekService.currentWeek(current);
+                String author = toStringSafe(body.get("author")).trim();
+                if (author.isBlank()) {
+                    author = "Dashboard";
+                }
+                UpdateEntry created = updateRepository.create(week.start(), parsedType.get(), text, author);
+                discordGateway.requestSyncCurrentWeek(true);
+                ctx.status(HttpStatus.CREATED).json(toUpdateMap(created));
+            });
 
-        app.delete("/api/updates/current/{id}", ctx -> {
-            long id = Long.parseLong(ctx.pathParam("id"));
-            BotConfig current = configService.get();
-            WeekWindow week = weekService.currentWeek(current);
-            boolean deleted = updateRepository.deleteInWeek(id, week.start());
-            if (!deleted) {
-                ctx.status(HttpStatus.NOT_FOUND).json(Map.of("error", "Eintrag nicht gefunden"));
-                return;
-            }
-            discordGateway.requestSyncCurrentWeek(true);
-            ctx.json(Map.of("ok", true));
-        });
+            javalinConfig.routes.put("/api/updates/current/{id}", ctx -> {
+                long id = Long.parseLong(ctx.pathParam("id"));
+                Map<String, Object> body = ctx.bodyAsClass(Map.class);
+                BotConfig current = configService.get();
+                WeekWindow week = weekService.currentWeek(current);
 
-        app.get("/api/preview/current", ctx -> {
-            BotConfig current = configService.get();
-            WeekWindow week = weekService.currentWeek(current);
-            List<UpdateEntry> entries = updateRepository.findByWeek(week.start());
-            ctx.result(renderer.renderWeeklyMessage(week, entries, current));
-        });
+                Optional<UpdateEntry> existingOpt = updateRepository.findByIdInWeek(id, week.start());
+                if (existingOpt.isEmpty()) {
+                    ctx.status(HttpStatus.NOT_FOUND).json(Map.of("error", "Eintrag nicht gefunden"));
+                    return;
+                }
+                UpdateEntry existing = existingOpt.get();
 
-        app.post("/api/actions/sync", ctx -> {
-            discordGateway.requestSyncCurrentWeek(true);
-            ctx.json(Map.of("ok", true));
-        });
+                String typeRaw = toStringSafe(body.get("type"));
+                String textRaw = toStringSafe(body.get("text")).trim();
+                String authorRaw = toStringSafe(body.get("author")).trim();
 
-        app.post("/api/actions/test", ctx -> {
-            discordGateway.requestSendTestCurrentWeek();
-            ctx.json(Map.of("ok", true));
-        });
+                UpdateType type = existing.type();
+                if (!typeRaw.isBlank()) {
+                    Optional<UpdateType> parsed = UpdateType.fromKey(typeRaw);
+                    if (parsed.isEmpty()) {
+                        ctx.status(HttpStatus.BAD_REQUEST).json(Map.of("error", "Ungültiger Typ"));
+                        return;
+                    }
+                    type = parsed.get();
+                }
 
-        app.exception(Exception.class, (ex, ctx) -> {
-            String errorId = ErrorLogger.capture(LOGGER, "DASHBOARD_API", "Dashboard request failed", ex);
-            ctx.status(HttpStatus.INTERNAL_SERVER_ERROR).json(Map.of(
-                    "error", "Interner Serverfehler",
-                    "error_id", errorId
-            ));
+                String content = textRaw.isBlank() ? existing.content() : textRaw;
+                String author = authorRaw.isBlank() ? "Dashboard" : authorRaw;
+                boolean updated = updateRepository.updateInWeek(id, week.start(), type, content, author);
+                if (!updated) {
+                    ctx.status(HttpStatus.INTERNAL_SERVER_ERROR).json(Map.of("error", "Aktualisierung fehlgeschlagen"));
+                    return;
+                }
+                discordGateway.requestSyncCurrentWeek(true);
+                UpdateEntry refreshed = updateRepository.findByIdInWeek(id, week.start()).orElse(existing);
+                ctx.json(toUpdateMap(refreshed));
+            });
+
+            javalinConfig.routes.delete("/api/updates/current/{id}", ctx -> {
+                long id = Long.parseLong(ctx.pathParam("id"));
+                BotConfig current = configService.get();
+                WeekWindow week = weekService.currentWeek(current);
+                boolean deleted = updateRepository.deleteInWeek(id, week.start());
+                if (!deleted) {
+                    ctx.status(HttpStatus.NOT_FOUND).json(Map.of("error", "Eintrag nicht gefunden"));
+                    return;
+                }
+                discordGateway.requestSyncCurrentWeek(true);
+                ctx.json(Map.of("ok", true));
+            });
+
+            javalinConfig.routes.get("/api/preview/current", ctx -> {
+                BotConfig current = configService.get();
+                WeekWindow week = weekService.currentWeek(current);
+                List<UpdateEntry> entries = updateRepository.findByWeek(week.start());
+                ctx.result(renderer.renderWeeklyMessage(week, entries, current));
+            });
+
+            javalinConfig.routes.post("/api/actions/sync", ctx -> {
+                discordGateway.requestSyncCurrentWeek(true);
+                ctx.json(Map.of("ok", true));
+            });
+
+            javalinConfig.routes.post("/api/actions/test", ctx -> {
+                discordGateway.requestSendTestCurrentWeek();
+                ctx.json(Map.of("ok", true));
+            });
+
+            javalinConfig.routes.exception(Exception.class, (ex, ctx) -> {
+                String errorId = ErrorLogger.capture(LOGGER, "DASHBOARD_API", "Dashboard request failed", ex);
+                ctx.status(HttpStatus.INTERNAL_SERVER_ERROR).json(Map.of(
+                        "error", "Interner Serverfehler",
+                        "error_id", errorId
+                ));
+            });
         });
 
         try {
@@ -266,7 +262,18 @@ public final class DashboardServer implements AutoCloseable {
     @Override
     public void close() {
         if (app != null) {
-            app.stop();
+            try {
+                app.stop();
+            } catch (Throwable ex) {
+                String message = "Dashboard stop failed: %s: %s"
+                        .formatted(ex.getClass().getSimpleName(), ex.getMessage());
+                try {
+                    LOGGER.warn(message);
+                } catch (Throwable ignored) {
+                    // Ignore logging backend failures during shutdown.
+                }
+                System.err.println(message);
+            }
         }
     }
 }

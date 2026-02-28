@@ -27,6 +27,7 @@ public final class Main {
 
     public static void main(String[] args) throws Exception {
         printBootScreen();
+        preloadCriticalClasses();
         SingleInstanceLock instanceLock = SingleInstanceLock.acquire(Path.of("data", "nebiupdate.lock"));
 
         String configPath = "config.yml";
@@ -88,8 +89,16 @@ public final class Main {
         }
         try {
             closeable.close();
-        } catch (Exception ex) {
-            LOGGER.warn("Failed to close component {}", closeable.getClass().getSimpleName(), ex);
+        } catch (Throwable ex) {
+            String component = closeable.getClass().getSimpleName();
+            String message = "Failed to close component %s: %s: %s"
+                    .formatted(component, ex.getClass().getSimpleName(), ex.getMessage());
+            try {
+                LOGGER.warn(message);
+            } catch (Throwable ignored) {
+                // Ignore logging backend failures during shutdown.
+            }
+            System.err.println(message);
         }
     }
 
@@ -100,5 +109,41 @@ public final class Main {
                    Discord Weekly Update Bot + Dashboard + SQLite
                 =====================================================
                 """);
+    }
+
+    private static void preloadCriticalClasses() {
+        preloadRequiredClass("ch.qos.logback.classic.spi.ThrowableProxy");
+        preloadRequiredClass("net.dv8tion.jda.api.events.session.ShutdownEvent");
+        preloadRequiredClass("org.eclipse.jetty.server.Server");
+        preloadRequiredClass("org.eclipse.jetty.io.ManagedSelector");
+        preloadAnyRequiredClass(
+                "org.eclipse.jetty.ee10.servlet.ServletContextHandler",
+                "org.eclipse.jetty.servlet.ServletContextHandler"
+        );
+    }
+
+    private static void preloadRequiredClass(String className) {
+        preloadAnyRequiredClass(className);
+    }
+
+    private static void preloadAnyRequiredClass(String... classNames) {
+        ClassLoader classLoader = Main.class.getClassLoader();
+        for (String className : classNames) {
+            try {
+                Class.forName(className, true, classLoader);
+                return;
+            } catch (Throwable ignored) {
+                // Try next candidate.
+            }
+        }
+
+        String joined = String.join(" | ", classNames);
+        String message = "Kritische Klasse konnte nicht vorgeladen werden: " + joined;
+        try {
+            LOGGER.warn(message);
+        } catch (Throwable ignored) {
+            // Ignore logging backend failures.
+        }
+        System.err.println(message);
     }
 }
