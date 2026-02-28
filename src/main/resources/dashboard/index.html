@@ -1,0 +1,878 @@
+<!doctype html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>NebiUpdate Dashboard</title>
+    <style>
+        @import url("https://fonts.googleapis.com/css2?family=Sora:wght@400;600;700;800&family=JetBrains+Mono:wght@500;700&display=swap");
+
+        :root {
+            --bg-0: #080b15;
+            --bg-1: #121725;
+            --bg-2: #191f2d;
+            --line: #3a4b73;
+            --line-2: #2a334c;
+            --text: #f2f6ff;
+            --muted: #98a4c0;
+            --accent: #7ef2d5;
+            --accent-2: #74a3ff;
+            --danger: #ff6f89;
+            --warn: #ffc35d;
+            --ok: #58e091;
+            --radius-xl: 24px;
+            --radius-lg: 16px;
+            --radius-md: 12px;
+            --shadow: 0 20px 60px rgba(5, 8, 15, .55);
+            --mono: "JetBrains Mono", "Consolas", monospace;
+            --sans: "Sora", "Segoe UI", sans-serif;
+        }
+
+        * {
+            box-sizing: border-box;
+        }
+
+        body {
+            margin: 0;
+            font-family: var(--sans);
+            color: var(--text);
+            min-height: 100vh;
+            background:
+                radial-gradient(1000px 600px at -5% -15%, rgba(129, 68, 255, .25), transparent 55%),
+                radial-gradient(1000px 600px at 105% 0%, rgba(60, 176, 255, .28), transparent 52%),
+                radial-gradient(900px 500px at 40% 120%, rgba(46, 230, 169, .22), transparent 56%),
+                linear-gradient(180deg, #05070d 0%, #080b15 22%, #0b1020 100%);
+            overflow-x: hidden;
+        }
+
+        .noise::before {
+            content: "";
+            position: fixed;
+            inset: 0;
+            pointer-events: none;
+            opacity: .15;
+            background-image:
+                linear-gradient(0deg, rgba(255,255,255,.04) 1px, transparent 1px),
+                linear-gradient(90deg, rgba(255,255,255,.04) 1px, transparent 1px);
+            background-size: 4px 4px, 4px 4px;
+            mix-blend-mode: soft-light;
+        }
+
+        .shell {
+            width: min(1300px, 100% - 32px);
+            margin-inline: auto;
+            padding: 20px 0 56px;
+            display: grid;
+            gap: 16px;
+        }
+
+        .hero {
+            position: relative;
+            padding: 30px;
+            border-radius: var(--radius-xl);
+            border: 1px solid var(--line);
+            box-shadow: var(--shadow);
+            overflow: hidden;
+            background:
+                linear-gradient(120deg, rgba(19, 28, 46, .88), rgba(18, 24, 36, .72)),
+                linear-gradient(220deg, rgba(126, 242, 213, .25), rgba(116, 163, 255, .25));
+            animation: rise .55s ease both;
+        }
+
+        .hero::before {
+            content: "";
+            position: absolute;
+            width: 380px;
+            height: 380px;
+            border-radius: 50%;
+            right: -150px;
+            top: -140px;
+            background: radial-gradient(circle, rgba(126, 242, 213, .38), rgba(126, 242, 213, 0));
+            filter: blur(2px);
+        }
+
+        .hero::after {
+            content: "";
+            position: absolute;
+            width: 330px;
+            height: 330px;
+            border-radius: 50%;
+            left: -120px;
+            bottom: -160px;
+            background: radial-gradient(circle, rgba(116, 163, 255, .34), rgba(116, 163, 255, 0));
+        }
+
+        .badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            background: rgba(126, 242, 213, .14);
+            border: 1px solid rgba(126, 242, 213, .4);
+            color: #d8fff4;
+            padding: 8px 12px;
+            border-radius: 100px;
+            font-size: .78rem;
+            letter-spacing: .06em;
+            text-transform: uppercase;
+            margin-bottom: 14px;
+        }
+
+        .hero h1 {
+            margin: 0;
+            font-size: clamp(1.55rem, 3.4vw, 2.8rem);
+            letter-spacing: .02em;
+            max-width: 14ch;
+            line-height: 1.08;
+        }
+
+        .hero p {
+            margin: 12px 0 0;
+            color: var(--muted);
+            font-size: .97rem;
+            max-width: 62ch;
+            line-height: 1.7;
+        }
+
+        .panel {
+            position: relative;
+            border-radius: var(--radius-lg);
+            border: 1px solid var(--line-2);
+            background:
+                linear-gradient(145deg, rgba(18, 23, 36, .88), rgba(15, 20, 33, .82));
+            box-shadow: var(--shadow);
+            padding: 18px;
+            animation: rise .6s ease both;
+        }
+
+        .panel h2 {
+            margin: 0 0 14px;
+            font-size: .95rem;
+            letter-spacing: .08em;
+            text-transform: uppercase;
+            color: #dce7ff;
+        }
+
+        .layout {
+            display: grid;
+            grid-template-columns: repeat(12, 1fr);
+            gap: 16px;
+        }
+
+        .span-12 {
+            grid-column: span 12;
+        }
+
+        .span-8 {
+            grid-column: span 8;
+        }
+
+        .span-6 {
+            grid-column: span 6;
+        }
+
+        .span-4 {
+            grid-column: span 4;
+        }
+
+        .status-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+            gap: 10px;
+        }
+
+        .status-item {
+            padding: 11px;
+            border-radius: 12px;
+            border: 1px solid var(--line-2);
+            background: linear-gradient(180deg, rgba(26, 35, 54, .7), rgba(16, 22, 34, .7));
+            font-size: .86rem;
+        }
+
+        .status-item strong {
+            display: block;
+            color: var(--muted);
+            font-size: .72rem;
+            letter-spacing: .04em;
+            text-transform: uppercase;
+            margin-bottom: 5px;
+        }
+
+        .dot {
+            width: 9px;
+            height: 9px;
+            border-radius: 50%;
+            display: inline-block;
+            margin-right: 8px;
+            box-shadow: 0 0 14px currentColor;
+        }
+
+        .dot.ok {
+            background: var(--ok);
+            color: var(--ok);
+        }
+
+        .dot.bad {
+            background: var(--danger);
+            color: var(--danger);
+        }
+
+        .row {
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+        }
+
+        .field {
+            display: grid;
+            gap: 6px;
+        }
+
+        .field label {
+            font-size: .75rem;
+            color: var(--muted);
+            letter-spacing: .02em;
+        }
+
+        input, select, textarea, button {
+            width: 100%;
+            border-radius: 12px;
+            border: 1px solid var(--line);
+            color: var(--text);
+            padding: 11px 12px;
+            background: rgba(17, 23, 38, .74);
+            font-family: var(--sans);
+            font-size: .93rem;
+            outline: none;
+            transition: border-color .25s ease, box-shadow .25s ease, transform .15s ease;
+        }
+
+        input:focus, select:focus, textarea:focus {
+            border-color: var(--accent-2);
+            box-shadow: 0 0 0 3px rgba(116, 163, 255, .2);
+        }
+
+        textarea {
+            min-height: 92px;
+            resize: vertical;
+            line-height: 1.4;
+        }
+
+        button {
+            cursor: pointer;
+            font-weight: 700;
+            letter-spacing: .02em;
+            border: 0;
+            background: linear-gradient(120deg, #5eb7ff, #6ef4d4);
+            color: #0a1020;
+        }
+
+        button:hover {
+            transform: translateY(-1px);
+        }
+
+        button.secondary {
+            background: linear-gradient(120deg, #556da1, #6e83b8);
+            color: #edf4ff;
+        }
+
+        button.warn {
+            background: linear-gradient(120deg, #ffbf5e, #ffd97b);
+            color: #3f2b06;
+        }
+
+        button.danger {
+            background: linear-gradient(120deg, #ff8096, #ff6a73);
+            color: #2f0b15;
+        }
+
+        .mini {
+            width: auto;
+            padding: 6px 10px;
+            border-radius: 10px;
+            font-size: .78rem;
+        }
+
+        .grid-2 {
+            display: grid;
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+            gap: 12px;
+        }
+
+        .config-grid {
+            display: grid;
+            grid-template-columns: repeat(3, minmax(0, 1fr));
+            gap: 10px;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: .9rem;
+            overflow: hidden;
+            border-radius: 12px;
+        }
+
+        th, td {
+            text-align: left;
+            border-bottom: 1px solid var(--line-2);
+            padding: 10px 8px;
+            vertical-align: top;
+        }
+
+        th {
+            font-size: .72rem;
+            letter-spacing: .05em;
+            text-transform: uppercase;
+            color: var(--muted);
+        }
+
+        code, pre {
+            font-family: var(--mono);
+        }
+
+        pre {
+            margin: 0;
+            border-radius: 14px;
+            border: 1px solid var(--line);
+            padding: 14px;
+            background: rgba(8, 11, 20, .92);
+            line-height: 1.5;
+            font-size: .83rem;
+            max-height: 430px;
+            overflow: auto;
+            white-space: pre-wrap;
+            word-break: break-word;
+        }
+
+        .message {
+            margin-top: 8px;
+            color: var(--muted);
+            font-size: .87rem;
+            min-height: 1.2em;
+        }
+
+        .inline-auth {
+            display: grid;
+            grid-template-columns: minmax(0, 1fr) auto auto;
+            gap: 10px;
+            align-items: end;
+        }
+
+        .toast {
+            position: fixed;
+            right: 20px;
+            bottom: 20px;
+            min-width: 260px;
+            max-width: min(420px, calc(100vw - 40px));
+            border-radius: 12px;
+            border: 1px solid var(--line);
+            background: rgba(13, 18, 29, .94);
+            color: var(--text);
+            padding: 12px 14px;
+            box-shadow: var(--shadow);
+            transform: translateY(16px);
+            opacity: 0;
+            pointer-events: none;
+            transition: .25s ease;
+            font-size: .88rem;
+        }
+
+        .toast.show {
+            transform: translateY(0);
+            opacity: 1;
+        }
+
+        .toast.error {
+            border-color: rgba(255, 111, 137, .6);
+            color: #ffd8e1;
+        }
+
+        @keyframes rise {
+            from {
+                opacity: 0;
+                transform: translateY(10px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        @media (max-width: 1080px) {
+            .config-grid {
+                grid-template-columns: repeat(2, minmax(0, 1fr));
+            }
+
+            .span-8, .span-6, .span-4 {
+                grid-column: span 12;
+            }
+        }
+
+        @media (max-width: 760px) {
+            .shell {
+                width: min(1300px, 100% - 22px);
+            }
+
+            .hero {
+                padding: 22px;
+            }
+
+            .config-grid, .grid-2 {
+                grid-template-columns: 1fr;
+            }
+
+            .inline-auth {
+                grid-template-columns: 1fr;
+            }
+        }
+    </style>
+</head>
+<body class="noise">
+<main class="shell">
+    <section class="hero">
+        <span class="badge">NebiUpdate Command Center</span>
+        <h1>Weekly News. Brutal clean control.</h1>
+        <p>Steuere Config, Wochenupdates, Testversand und Live-Sync in einem einzigen Board. Alle Änderungen landen direkt in Discord und in deiner Datenbank.</p>
+    </section>
+
+    <section class="panel span-12">
+        <h2>Dashboard Auth</h2>
+        <div class="inline-auth">
+            <div class="field">
+                <label for="authToken">Token (Header: <code>X-Dashboard-Token</code>)</label>
+                <input id="authToken" type="password" placeholder="Leer lassen, wenn kein Dashboard-Token gesetzt ist">
+            </div>
+            <button id="saveToken" class="secondary" type="button">Token speichern</button>
+            <button id="reloadAll" class="secondary" type="button">Alles neu laden</button>
+        </div>
+        <div id="globalMessage" class="message"></div>
+    </section>
+
+    <section class="layout">
+        <article class="panel span-4">
+            <h2>Live Status</h2>
+            <div class="status-grid" id="statusGrid"></div>
+        </article>
+
+        <article class="panel span-8">
+            <h2>Actions</h2>
+            <div class="row">
+                <button id="syncNow" type="button">Finale Wochen-Nachricht syncen</button>
+                <button id="testNow" type="button" class="warn">Test-Nachricht senden</button>
+                <button id="refreshPreview" type="button" class="secondary">Preview refresh</button>
+            </div>
+            <div id="actionMessage" class="message"></div>
+        </article>
+
+        <article class="panel span-12">
+            <h2>Bot Config</h2>
+            <form id="configForm">
+                <div id="configFields" class="config-grid"></div>
+                <div class="row">
+                    <button type="submit">Config speichern + Commands re-register</button>
+                </div>
+            </form>
+            <div id="configMessage" class="message"></div>
+        </article>
+
+        <article class="panel span-6">
+            <h2>Update Add (Current Week)</h2>
+            <form id="addForm">
+                <div class="field">
+                    <label for="newType">Typ</label>
+                    <select id="newType">
+                        <option value="added">Neu</option>
+                        <option value="changed">Geändert</option>
+                        <option value="removed">Entfernt</option>
+                    </select>
+                </div>
+                <div class="field">
+                    <label for="newText">Text</label>
+                    <textarea id="newText" placeholder="Neue Woche, neue Features..."></textarea>
+                </div>
+                <div class="field">
+                    <label for="newAuthor">User</label>
+                    <input id="newAuthor" value="Dashboard" placeholder="z.B. 123456789012345678 oder <@123...>">
+                </div>
+                <button type="submit">Eintrag speichern</button>
+            </form>
+            <div id="addMessage" class="message"></div>
+        </article>
+
+        <article class="panel span-6">
+            <h2>Update Edit</h2>
+            <form id="editForm">
+                <div class="grid-2">
+                    <div class="field">
+                        <label for="editId">ID</label>
+                        <input id="editId" type="number" min="1" required>
+                    </div>
+                    <div class="field">
+                        <label for="editType">Typ</label>
+                        <select id="editType">
+                            <option value="">(unverändert)</option>
+                            <option value="added">Neu</option>
+                            <option value="changed">Geändert</option>
+                            <option value="removed">Entfernt</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="field">
+                    <label for="editText">Text</label>
+                    <textarea id="editText" placeholder="Leer lassen = alter Text bleibt"></textarea>
+                </div>
+                <div class="field">
+                    <label for="editAuthor">User</label>
+                    <input id="editAuthor" value="Dashboard" placeholder="z.B. 123456789012345678 oder <@123...>">
+                </div>
+                <button type="submit" class="warn">Eintrag aktualisieren</button>
+            </form>
+            <div id="editMessage" class="message"></div>
+        </article>
+
+        <article class="panel span-12">
+            <h2>Current Week Entries</h2>
+            <table>
+                <thead>
+                <tr>
+                    <th>ID</th>
+                    <th>Typ</th>
+                    <th>Text</th>
+                    <th>User</th>
+                    <th>Aktion</th>
+                </tr>
+                </thead>
+                <tbody id="updatesBody"></tbody>
+            </table>
+        </article>
+
+        <article class="panel span-12">
+            <h2>Discord Preview</h2>
+            <pre id="previewText">Lade Preview...</pre>
+        </article>
+    </section>
+</main>
+
+<aside id="toast" class="toast"></aside>
+
+<script>
+    const configFields = [
+        ["guild_id", "Guild ID"],
+        ["channel_id", "Channel ID"],
+        ["timezone", "Timezone (z.B. Europe/Berlin)"],
+        ["schedule_day", "Schedule Day (MONDAY..SUNDAY)"],
+        ["schedule_time", "Schedule Zeit (24h, HH:mm)"],
+        ["title_emoji", "Titel Emoji"],
+        ["title_emoji_id", "Titel Emoji ID"],
+        ["title_emoji_animated", "Titel Emoji animiert (true/false)"],
+        ["title_text", "Titel Text"],
+        ["added_emoji", "Emoji Added"],
+        ["added_emoji_id", "Emoji-ID Added"],
+        ["added_emoji_animated", "Added animiert (true/false)"],
+        ["changed_emoji", "Emoji Changed"],
+        ["changed_emoji_id", "Emoji-ID Changed"],
+        ["changed_emoji_animated", "Changed animiert (true/false)"],
+        ["removed_emoji", "Emoji Removed"],
+        ["removed_emoji_id", "Emoji-ID Removed"],
+        ["removed_emoji_animated", "Removed animiert (true/false)"],
+        ["notice_emoji", "Info Emoji"],
+        ["notice_emoji_id", "Info Emoji ID"],
+        ["notice_emoji_animated", "Info animiert (true/false)"],
+        ["notice_text", "Info Text"],
+        ["no_change_text", "No-Change Text"],
+        ["spacer", "Spacer Zeile"],
+        ["dashboard_host", "Dashboard Host (Restart)"],
+        ["dashboard_port", "Dashboard Port (Restart)"]
+    ];
+
+    const elements = {
+        statusGrid: document.getElementById("statusGrid"),
+        configFields: document.getElementById("configFields"),
+        updatesBody: document.getElementById("updatesBody"),
+        previewText: document.getElementById("previewText"),
+        authToken: document.getElementById("authToken"),
+        globalMessage: document.getElementById("globalMessage"),
+        configMessage: document.getElementById("configMessage"),
+        addMessage: document.getElementById("addMessage"),
+        editMessage: document.getElementById("editMessage"),
+        actionMessage: document.getElementById("actionMessage"),
+        toast: document.getElementById("toast")
+    };
+
+    const savedToken = localStorage.getItem("dashboardToken") || "";
+    elements.authToken.value = savedToken;
+
+    function getToken() {
+        return elements.authToken.value.trim();
+    }
+
+    function toast(message, error = false) {
+        elements.toast.textContent = message;
+        elements.toast.className = `toast show${error ? " error" : ""}`;
+        window.clearTimeout(toast._timer);
+        toast._timer = window.setTimeout(() => {
+            elements.toast.classList.remove("show");
+        }, 2600);
+    }
+
+    async function api(path, options = {}) {
+        const headers = Object.assign({"Content-Type": "application/json"}, options.headers || {});
+        const token = getToken();
+        if (token) {
+            headers["X-Dashboard-Token"] = token;
+        }
+        const response = await fetch(path, Object.assign({}, options, {headers}));
+        if (!response.ok) {
+            const text = await response.text();
+            throw new Error(`HTTP ${response.status}: ${text}`);
+        }
+        const contentType = response.headers.get("Content-Type") || "";
+        if (contentType.includes("application/json")) {
+            return response.json();
+        }
+        return response.text();
+    }
+
+    function setMessage(el, text, isError = false) {
+        el.textContent = text;
+        el.style.color = isError ? "var(--danger)" : "var(--muted)";
+    }
+
+    function renderConfig(config) {
+        elements.configFields.innerHTML = "";
+        for (const [key, label] of configFields) {
+            const id = `cfg_${key}`;
+            const wrapper = document.createElement("div");
+            wrapper.className = "field";
+
+            const fieldLabel = document.createElement("label");
+            fieldLabel.setAttribute("for", id);
+            fieldLabel.textContent = label;
+
+            const input = document.createElement("input");
+            input.id = id;
+            input.name = key;
+            input.value = (config[key] ?? "").toString();
+
+            wrapper.appendChild(fieldLabel);
+            wrapper.appendChild(input);
+            elements.configFields.appendChild(wrapper);
+        }
+    }
+
+    function renderStatus(status) {
+        const entries = [
+            ["Bot", `${status.connected ? "Verbunden" : "Offline"}`, status.connected],
+            ["Woche", status.weekLabel || "-"],
+            ["Updates", String(status.updateCount ?? 0)],
+            ["Guild", status.guildId || "(global)"],
+            ["Channel", status.channelId || "(nicht gesetzt)"],
+            ["Schedule", `${status.scheduleDay || "-"} ${status.scheduleTime || "-"}`],
+            ["Timezone", status.timezone || "-"]
+        ];
+        elements.statusGrid.innerHTML = "";
+        for (const item of entries) {
+            const card = document.createElement("div");
+            card.className = "status-item";
+            if (item.length === 3) {
+                card.innerHTML = `<strong>${item[0]}</strong><span><span class="dot ${item[2] ? "ok" : "bad"}"></span>${item[1]}</span>`;
+            } else {
+                card.innerHTML = `<strong>${item[0]}</strong><span>${item[1]}</span>`;
+            }
+            elements.statusGrid.appendChild(card);
+        }
+    }
+
+    function renderUpdates(updates) {
+        elements.updatesBody.innerHTML = "";
+        if (!updates.length) {
+            const row = document.createElement("tr");
+            row.innerHTML = `<td colspan="5">Keine Einträge in der aktuellen Woche.</td>`;
+            elements.updatesBody.appendChild(row);
+            return;
+        }
+        for (const update of updates) {
+            const row = document.createElement("tr");
+            row.innerHTML = `
+                <td>${update.id}</td>
+                <td>${escapeHtml(update.type)}</td>
+                <td>${escapeHtml(update.content)}</td>
+                <td>${escapeHtml(formatAuthor(update.author || "Unbekannt"))}</td>
+                <td>
+                    <button class="mini danger" data-delete="${update.id}" type="button">Delete</button>
+                    <button class="mini secondary" data-fill="${update.id}" type="button">Load</button>
+                </td>
+            `;
+            elements.updatesBody.appendChild(row);
+        }
+    }
+
+    function formatAuthor(author) {
+        const value = (author || "").trim();
+        if (!value) {
+            return "@Unbekannt";
+        }
+        const mentionMatch = value.match(/^<@!?(\d{15,25})>$/);
+        if (mentionMatch) {
+            return `<@${mentionMatch[1]}>`;
+        }
+        if (/^\d{15,25}$/.test(value)) {
+            return `<@${value}>`;
+        }
+        if (value.startsWith("@")) {
+            return value;
+        }
+        return `@${value}`;
+    }
+
+    function escapeHtml(value) {
+        return (value || "")
+            .replaceAll("&", "&amp;")
+            .replaceAll("<", "&lt;")
+            .replaceAll(">", "&gt;");
+    }
+
+    async function reloadAll() {
+        try {
+            const [status, config, updates, preview] = await Promise.all([
+                api("/api/status"),
+                api("/api/config"),
+                api("/api/updates/current"),
+                api("/api/preview/current")
+            ]);
+            renderStatus(status);
+            renderConfig(config);
+            renderUpdates(updates);
+            elements.previewText.textContent = preview;
+            setMessage(elements.globalMessage, "Dashboard synchronisiert.");
+        } catch (error) {
+            setMessage(elements.globalMessage, error.message, true);
+            toast(error.message, true);
+        }
+    }
+
+    document.getElementById("saveToken").addEventListener("click", () => {
+        localStorage.setItem("dashboardToken", getToken());
+        setMessage(elements.globalMessage, "Token lokal gespeichert.");
+        toast("Token gespeichert.");
+    });
+
+    document.getElementById("reloadAll").addEventListener("click", reloadAll);
+
+    document.getElementById("syncNow").addEventListener("click", async () => {
+        try {
+            await api("/api/actions/sync", {method: "POST", body: "{}"});
+            setMessage(elements.actionMessage, "Sync ausgelöst.");
+            toast("Wochen-Nachricht wird synchronisiert.");
+            await reloadAll();
+        } catch (error) {
+            setMessage(elements.actionMessage, error.message, true);
+            toast(error.message, true);
+        }
+    });
+
+    document.getElementById("testNow").addEventListener("click", async () => {
+        try {
+            await api("/api/actions/test", {method: "POST", body: "{}"});
+            setMessage(elements.actionMessage, "Test-Nachricht gesendet.");
+            toast("Test-Nachricht wurde angefordert.");
+        } catch (error) {
+            setMessage(elements.actionMessage, error.message, true);
+            toast(error.message, true);
+        }
+    });
+
+    document.getElementById("refreshPreview").addEventListener("click", reloadAll);
+
+    document.getElementById("configForm").addEventListener("submit", async (event) => {
+        event.preventDefault();
+        const payload = {};
+        for (const [key] of configFields) {
+            payload[key] = document.getElementById(`cfg_${key}`).value;
+        }
+        try {
+            await api("/api/config", {method: "PUT", body: JSON.stringify(payload)});
+            setMessage(elements.configMessage, "Config gespeichert.");
+            toast("Config gespeichert.");
+            await reloadAll();
+        } catch (error) {
+            setMessage(elements.configMessage, error.message, true);
+            toast(error.message, true);
+        }
+    });
+
+    document.getElementById("addForm").addEventListener("submit", async (event) => {
+        event.preventDefault();
+        const payload = {
+            type: document.getElementById("newType").value,
+            text: document.getElementById("newText").value,
+            author: document.getElementById("newAuthor").value
+        };
+        try {
+            await api("/api/updates/current", {method: "POST", body: JSON.stringify(payload)});
+            document.getElementById("newText").value = "";
+            setMessage(elements.addMessage, "Eintrag gespeichert.");
+            toast("Eintrag hinzugefügt.");
+            await reloadAll();
+        } catch (error) {
+            setMessage(elements.addMessage, error.message, true);
+            toast(error.message, true);
+        }
+    });
+
+    document.getElementById("editForm").addEventListener("submit", async (event) => {
+        event.preventDefault();
+        const id = document.getElementById("editId").value;
+        const payload = {
+            type: document.getElementById("editType").value,
+            text: document.getElementById("editText").value,
+            author: document.getElementById("editAuthor").value
+        };
+        try {
+            await api(`/api/updates/current/${id}`, {method: "PUT", body: JSON.stringify(payload)});
+            setMessage(elements.editMessage, `Eintrag #${id} aktualisiert.`);
+            toast(`Eintrag #${id} aktualisiert.`);
+            await reloadAll();
+        } catch (error) {
+            setMessage(elements.editMessage, error.message, true);
+            toast(error.message, true);
+        }
+    });
+
+    elements.updatesBody.addEventListener("click", async (event) => {
+        const target = event.target;
+        if (!(target instanceof HTMLButtonElement)) {
+            return;
+        }
+        const deleteId = target.getAttribute("data-delete");
+        if (deleteId) {
+            try {
+                await api(`/api/updates/current/${deleteId}`, {method: "DELETE"});
+                setMessage(elements.actionMessage, `Eintrag #${deleteId} entfernt.`);
+                toast(`Eintrag #${deleteId} entfernt.`);
+                await reloadAll();
+            } catch (error) {
+                setMessage(elements.actionMessage, error.message, true);
+                toast(error.message, true);
+            }
+            return;
+        }
+        const fillId = target.getAttribute("data-fill");
+        if (fillId) {
+            const row = target.closest("tr");
+            if (!row) {
+                return;
+            }
+            document.getElementById("editId").value = fillId;
+            document.getElementById("editType").value = row.children[1].textContent.trim();
+            document.getElementById("editText").value = row.children[2].textContent.trim();
+            document.getElementById("editAuthor").value = row.children[3].textContent.trim();
+            setMessage(elements.editMessage, `Eintrag #${fillId} ins Edit-Form geladen.`);
+            toast(`Eintrag #${fillId} geladen.`);
+        }
+    });
+
+    reloadAll();
+</script>
+</body>
+</html>
