@@ -2,6 +2,7 @@ package dev.eministar.nebiupdate.discord;
 
 import dev.eministar.nebiupdate.config.BotConfig;
 import dev.eministar.nebiupdate.config.ConfigService;
+import dev.eministar.nebiupdate.audit.AuditService;
 import dev.eministar.nebiupdate.data.UpdateEntry;
 import dev.eministar.nebiupdate.data.UpdateRepository;
 import dev.eministar.nebiupdate.data.UpdateType;
@@ -32,6 +33,7 @@ public final class UpdateCommandListener extends ListenerAdapter {
     private final UpdateRepository updateRepository;
     private final WeeklyMessageRenderer renderer;
     private final ExecutorService commandWorker;
+    private final AuditService auditService;
 
     public UpdateCommandListener(
             DiscordGateway discordGateway,
@@ -39,7 +41,8 @@ public final class UpdateCommandListener extends ListenerAdapter {
             WeekService weekService,
             UpdateRepository updateRepository,
             WeeklyMessageRenderer renderer,
-            ExecutorService commandWorker
+            ExecutorService commandWorker,
+            AuditService auditService
     ) {
         this.discordGateway = discordGateway;
         this.configService = configService;
@@ -47,6 +50,7 @@ public final class UpdateCommandListener extends ListenerAdapter {
         this.updateRepository = updateRepository;
         this.renderer = renderer;
         this.commandWorker = commandWorker;
+        this.auditService = auditService;
     }
 
     @Override
@@ -77,8 +81,8 @@ public final class UpdateCommandListener extends ListenerAdapter {
             case "edit" -> handleDeferred(event, () -> onEdit(event));
             case "remove" -> handleDeferred(event, () -> onRemove(event));
             case "list" -> handleDeferred(event, () -> onList(event));
-            case "sync" -> handleDeferred(event, this::onSync);
-            case "test" -> handleDeferred(event, this::onTest);
+            case "sync" -> handleDeferred(event, () -> onSync(event));
+            case "test" -> handleDeferred(event, () -> onTest(event));
             default -> event.reply("Unbekannter Subcommand.").setEphemeral(true).queue(
                     null,
                     failure -> LOGGER.warn("Konnte Antwort für Subcommand {} nicht senden", subcommand, failure)
@@ -110,6 +114,18 @@ public final class UpdateCommandListener extends ListenerAdapter {
         WeekWindow week = weekService.currentWeek(config);
         String author = authorFromEvent(event);
         UpdateEntry created = updateRepository.create(week.start(), parsedType.get(), text, author);
+        auditService.log(
+                author,
+                "discord",
+                "update.create",
+                "update",
+                Long.toString(created.id()),
+                java.util.Map.of(
+                        "weekStart", week.start().toString(),
+                        "type", parsedType.get().key(),
+                        "content", text
+                )
+        );
         discordGateway.requestSyncCurrentWeek(true);
         return "✅ Eintrag `#" + created.id() + "` gespeichert und Wochenpost synchronisiert.";
     }
@@ -158,6 +174,18 @@ public final class UpdateCommandListener extends ListenerAdapter {
             return "Eintrag konnte nicht aktualisiert werden.";
         }
 
+        auditService.log(
+                authorFromEvent(event),
+                "discord",
+                "update.edit",
+                "update",
+                Long.toString(id),
+                java.util.Map.of(
+                        "weekStart", week.start().toString(),
+                        "type", targetType.key(),
+                        "content", targetText
+                )
+        );
         discordGateway.requestSyncCurrentWeek(true);
         return "✏️ Eintrag `#" + id + "` aktualisiert.";
     }
@@ -176,6 +204,14 @@ public final class UpdateCommandListener extends ListenerAdapter {
             return "Kein Eintrag mit ID `" + id + "` in der aktuellen Woche gefunden.";
         }
 
+        auditService.log(
+                authorFromEvent(event),
+                "discord",
+                "update.delete",
+                "update",
+                Long.toString(id),
+                java.util.Map.of("weekStart", week.start().toString())
+        );
         discordGateway.requestSyncCurrentWeek(true);
         return "🗑️ Eintrag `#" + id + "` entfernt.";
     }
@@ -188,13 +224,15 @@ public final class UpdateCommandListener extends ListenerAdapter {
         return truncate(listMessage, 1800);
     }
 
-    private String onSync() {
+    private String onSync(SlashCommandInteractionEvent event) {
         discordGateway.requestSyncCurrentWeek(true);
+        auditService.log(authorFromEvent(event), "discord", "weekly.sync", "weekly_message", "current_week", java.util.Map.of());
         return "🔄 Wochen-Nachricht wird jetzt synchronisiert.";
     }
 
-    private String onTest() {
+    private String onTest(SlashCommandInteractionEvent event) {
         discordGateway.requestSendTestCurrentWeek();
+        auditService.log(authorFromEvent(event), "discord", "weekly.test", "weekly_message", "current_week", java.util.Map.of());
         return "🧪 Test-Nachricht wird jetzt gesendet (ohne Wochenpost-Speicherung).";
     }
 

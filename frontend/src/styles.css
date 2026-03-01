@@ -181,7 +181,7 @@ body::before {
 .auth-row {
   margin-top: 14px;
   display: grid;
-  grid-template-columns: minmax(0, 1fr) auto auto;
+  grid-template-columns: minmax(0, 1fr) minmax(180px, 220px) auto auto;
   gap: 8px;
   align-items: end;
 }
@@ -402,11 +402,32 @@ textarea {
   width: min(320px, 100%);
 }
 
+.lang-field {
+  min-width: 180px;
+}
+
 .list-stats {
   margin: -2px 0 10px;
   display: flex;
   flex-wrap: wrap;
   gap: 8px;
+}
+
+.analytics-list {
+  display: grid;
+  gap: 8px;
+}
+
+.analytics-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  padding: 8px 10px;
+  background: #f8fbff;
+  font-size: 0.84rem;
 }
 
 .list-stats span {

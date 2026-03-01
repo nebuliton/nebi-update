@@ -2,6 +2,7 @@ package dev.eministar.nebiupdate.discord;
 
 import dev.eministar.nebiupdate.config.BotConfig;
 import dev.eministar.nebiupdate.config.ConfigService;
+import dev.eministar.nebiupdate.audit.AuditService;
 import dev.eministar.nebiupdate.data.UpdateEntry;
 import dev.eministar.nebiupdate.data.UpdateRepository;
 import dev.eministar.nebiupdate.logging.ErrorLogger;
@@ -37,6 +38,7 @@ public final class DiscordGateway implements AutoCloseable {
     private final UpdateRepository updateRepository;
     private final WeekService weekService;
     private final WeeklyMessageRenderer renderer;
+    private final AuditService auditService;
     private final ExecutorService worker;
     private final ExecutorService commandWorker;
 
@@ -47,13 +49,15 @@ public final class DiscordGateway implements AutoCloseable {
             ConfigService configService,
             UpdateRepository updateRepository,
             WeekService weekService,
-            WeeklyMessageRenderer renderer
+            WeeklyMessageRenderer renderer,
+            AuditService auditService
     ) {
         this.token = token;
         this.configService = configService;
         this.updateRepository = updateRepository;
         this.weekService = weekService;
         this.renderer = renderer;
+        this.auditService = auditService;
         this.worker = Executors.newSingleThreadExecutor(r -> {
             Thread thread = new Thread(r, "discord-sync-worker");
             thread.setDaemon(true);
@@ -68,7 +72,7 @@ public final class DiscordGateway implements AutoCloseable {
 
     public void start() throws InterruptedException {
         jda = JDABuilder.createDefault(token)
-                .addEventListeners(new UpdateCommandListener(this, configService, weekService, updateRepository, renderer, commandWorker))
+                .addEventListeners(new UpdateCommandListener(this, configService, weekService, updateRepository, renderer, commandWorker, auditService))
                 .build();
         jda.awaitReady();
         registerSlashCommands();
@@ -160,6 +164,14 @@ public final class DiscordGateway implements AutoCloseable {
                     .setSuppressEmbeds(true)
                     .complete();
             LOGGER.info("Sent test weekly message {} for {}", message.getId(), week.start());
+            auditService.log(
+                    "system",
+                    "discord",
+                    "weekly.test.sent",
+                    "weekly_message",
+                    week.start().toString(),
+                    java.util.Map.of("messageId", message.getId())
+            );
         } catch (Exception ex) {
             ErrorLogger.capture(LOGGER, "DISCORD_TEST", ex, "Failed to send test weekly message for {}", week.start());
         }
@@ -197,6 +209,14 @@ public final class DiscordGateway implements AutoCloseable {
                         .setSuppressEmbeds(true)
                         .complete();
                 LOGGER.info("Updated weekly message {} for {}", messageId, week.start());
+                auditService.log(
+                        "system",
+                        "discord",
+                        "weekly.message.updated",
+                        "weekly_message",
+                        week.start().toString(),
+                        java.util.Map.of("messageId", messageId, "entryCount", entries.size())
+                );
                 return;
             } catch (ErrorResponseException ex) {
                 if (ex.getErrorResponse() != ErrorResponse.UNKNOWN_MESSAGE) {
@@ -223,6 +243,14 @@ public final class DiscordGateway implements AutoCloseable {
                     .complete();
             updateRepository.upsertWeeklyMessage(week.start(), channel.getId(), created.getId());
             LOGGER.info("Created weekly message {} for {}", created.getId(), week.start());
+            auditService.log(
+                    "system",
+                    "discord",
+                    "weekly.message.created",
+                    "weekly_message",
+                    week.start().toString(),
+                    java.util.Map.of("messageId", created.getId(), "entryCount", entries.size())
+            );
         } catch (Exception ex) {
             ErrorLogger.capture(LOGGER, "DISCORD_SYNC", ex, "Failed to create weekly message for {}", week.start());
         }

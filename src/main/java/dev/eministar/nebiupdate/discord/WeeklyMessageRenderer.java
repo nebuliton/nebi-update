@@ -3,6 +3,7 @@ package dev.eministar.nebiupdate.discord;
 import dev.eministar.nebiupdate.config.BotConfig;
 import dev.eministar.nebiupdate.data.UpdateEntry;
 import dev.eministar.nebiupdate.data.UpdateType;
+import dev.eministar.nebiupdate.i18n.I18n;
 import dev.eministar.nebiupdate.time.WeekWindow;
 import net.dv8tion.jda.api.components.MessageTopLevelComponent;
 import net.dv8tion.jda.api.components.container.Container;
@@ -34,17 +35,20 @@ public final class WeeklyMessageRenderer {
         String addedEmoji = resolveEmoji(config.addedEmoji(), config.addedEmojiId(), config.addedEmojiAnimated(), "added");
         String changedEmoji = resolveEmoji(config.changedEmoji(), config.changedEmojiId(), config.changedEmojiAnimated(), "changed");
         String removedEmoji = resolveEmoji(config.removedEmoji(), config.removedEmojiId(), config.removedEmojiAnimated(), "removed");
+        String addedLabel = I18n.text(config, "renderer.added", "Neu");
+        String changedLabel = I18n.text(config, "renderer.changed", "Geaendert");
+        String removedLabel = I18n.text(config, "renderer.removed", "Entfernt");
 
         StringBuilder builder = new StringBuilder();
         builder.append(resolveEmoji(config.titleEmoji(), config.titleEmojiId(), config.titleEmojiAnimated(), "title"))
                 .append(" ").append(config.titleText())
                 .append(" [").append(week.label()).append("]\n\n");
         builder.append(addedEmoji)
-                .append(" = Neu, ")
+                .append(" = ").append(addedLabel).append(", ")
                 .append(changedEmoji)
-                .append(" = Geändert, ")
+                .append(" = ").append(changedLabel).append(", ")
                 .append(removedEmoji)
-                .append(" = Entfernt\n\n");
+                .append(" = ").append(removedLabel).append("\n\n");
         builder.append(resolveEmoji(config.noticeEmoji(), config.noticeEmojiId(), config.noticeEmojiAnimated(), "notice"))
                 .append(" ").append(config.noticeText())
                 .append("\n\n");
@@ -53,15 +57,29 @@ public final class WeeklyMessageRenderer {
         if (remaining <= 0) {
             return truncate(builder.toString(), TEXT_LIMIT);
         }
-        builder.append(buildOrderedChangeLines(entries, config, addedEmoji, changedEmoji, removedEmoji, remaining));
+        builder.append(buildOrderedChangeLines(
+                entries,
+                config,
+                addedEmoji,
+                changedEmoji,
+                removedEmoji,
+                addedLabel,
+                changedLabel,
+                removedLabel,
+                remaining
+        ));
         return truncate(builder.toString(), TEXT_LIMIT);
     }
 
     public String renderUpdateList(WeekWindow week, List<UpdateEntry> entries, BotConfig config) {
+        String currentWeekLabel = I18n.text(config, "renderer.current_week", "Aktuelle Woche");
+        String addedLabel = I18n.text(config, "renderer.added", "Neu");
+        String changedLabel = I18n.text(config, "renderer.changed", "Geaendert");
+        String removedLabel = I18n.text(config, "renderer.removed", "Entfernt");
         StringBuilder builder = new StringBuilder();
-        builder.append("Aktuelle Woche [").append(week.label()).append("]\n");
+        builder.append(currentWeekLabel).append(" [").append(week.label()).append("]\n");
         if (entries.isEmpty()) {
-            builder.append("- Keine Einträge vorhanden.");
+            builder.append("- ").append(I18n.text(config, "renderer.none", "Keine Eintraege."));
             return builder.toString();
         }
 
@@ -71,7 +89,17 @@ public final class WeeklyMessageRenderer {
 
         int remaining = TEXT_LIMIT - builder.length();
         if (remaining > 0) {
-            builder.append(buildOrderedChangeLines(entries, config, addedEmoji, changedEmoji, removedEmoji, remaining));
+            builder.append(buildOrderedChangeLines(
+                    entries,
+                    config,
+                    addedEmoji,
+                    changedEmoji,
+                    removedEmoji,
+                    addedLabel,
+                    changedLabel,
+                    removedLabel,
+                    remaining
+            ));
         }
         return truncate(builder.toString(), TEXT_LIMIT);
     }
@@ -82,13 +110,20 @@ public final class WeeklyMessageRenderer {
         String changedEmoji = resolveEmoji(config.changedEmoji(), config.changedEmojiId(), config.changedEmojiAnimated(), "changed");
         String removedEmoji = resolveEmoji(config.removedEmoji(), config.removedEmojiId(), config.removedEmojiAnimated(), "removed");
         String noticeEmoji = resolveEmoji(config.noticeEmoji(), config.noticeEmojiId(), config.noticeEmojiAnimated(), "notice");
+        String addedLabel = I18n.text(config, "renderer.added", "Neu");
+        String changedLabel = I18n.text(config, "renderer.changed", "Geaendert");
+        String removedLabel = I18n.text(config, "renderer.removed", "Entfernt");
+        String testPrefix = I18n.text(config, "renderer.test_prefix", "TEST");
+        String testNotice = I18n.text(config, "renderer.test_notice", "Diese Nachricht ist ein Test und wird nicht als Wochenpost gespeichert.");
+        String noneLabel = I18n.text(config, "renderer.none", "Keine Eintraege.");
+        String noTextLabel = I18n.text(config, "renderer.no_text", "(kein Text)");
 
-        String headlinePrefix = testMode ? "## 🧪 TEST • " : "## ";
+        String headlinePrefix = testMode ? "## 🧪 " + testPrefix + " • " : "## ";
         String headline = headlinePrefix + titleEmoji + " " + config.titleText() + " [" + week.label() + "]";
 
-        String legend = addedEmoji + " Neu • "
-                + changedEmoji + " Geändert • "
-                + removedEmoji + " Entfernt";
+        String legend = addedEmoji + " " + addedLabel + " • "
+                + changedEmoji + " " + changedLabel + " • "
+                + removedEmoji + " " + removedLabel;
 
         List<UpdateEntry> addedEntries = entriesOfType(entries, UpdateType.ADDED);
         List<UpdateEntry> changedEntries = entriesOfType(entries, UpdateType.CHANGED);
@@ -96,12 +131,12 @@ public final class WeeklyMessageRenderer {
 
         String topBlock = headline + "\n" + legend + "\n\n> " + noticeEmoji + " " + config.noticeText();
         if (testMode) {
-            topBlock += "\n> Diese Nachricht ist ein Test und wird nicht als Wochenpost gespeichert.";
+            topBlock += "\n> " + testNotice;
         }
 
-        String addedBlock = buildContainerCategoryBlock("Neu", addedEmoji, addedEntries);
-        String changedBlock = buildContainerCategoryBlock("Geändert", changedEmoji, changedEntries);
-        String removedBlock = buildContainerCategoryBlock("Entfernt", removedEmoji, removedEntries);
+        String addedBlock = buildContainerCategoryBlock(addedLabel, addedEmoji, addedEntries, noneLabel, noTextLabel);
+        String changedBlock = buildContainerCategoryBlock(changedLabel, changedEmoji, changedEntries, noneLabel, noTextLabel);
+        String removedBlock = buildContainerCategoryBlock(removedLabel, removedEmoji, removedEntries, noneLabel, noTextLabel);
 
         Container container = Container.of(
                 TextDisplay.of(truncate(topBlock, CONTAINER_TEXT_LIMIT)),
@@ -124,6 +159,9 @@ public final class WeeklyMessageRenderer {
             String addedEmoji,
             String changedEmoji,
             String removedEmoji,
+            String addedLabel,
+            String changedLabel,
+            String removedLabel,
             int maxLength
     ) {
         if (entries.isEmpty()) {
@@ -133,15 +171,16 @@ public final class WeeklyMessageRenderer {
         List<UpdateEntry> addedEntries = entriesOfType(entries, UpdateType.ADDED);
         List<UpdateEntry> changedEntries = entriesOfType(entries, UpdateType.CHANGED);
         List<UpdateEntry> removedEntries = entriesOfType(entries, UpdateType.REMOVED);
+        String noneLabel = I18n.text(config, "renderer.none", "Keine Eintraege.");
 
         StringBuilder builder = new StringBuilder();
-        if (!appendCategoryBlock(builder, "Neu", addedEmoji, addedEntries, maxLength, builder.length() > 0)) {
+        if (!appendCategoryBlock(builder, addedLabel, addedEmoji, addedEntries, noneLabel, maxLength, builder.length() > 0)) {
             return builder.toString().trim();
         }
-        if (!appendCategoryBlock(builder, "Geändert", changedEmoji, changedEntries, maxLength, builder.length() > 0)) {
+        if (!appendCategoryBlock(builder, changedLabel, changedEmoji, changedEntries, noneLabel, maxLength, builder.length() > 0)) {
             return builder.toString().trim();
         }
-        if (!appendCategoryBlock(builder, "Entfernt", removedEmoji, removedEntries, maxLength, builder.length() > 0)) {
+        if (!appendCategoryBlock(builder, removedLabel, removedEmoji, removedEntries, noneLabel, maxLength, builder.length() > 0)) {
             return builder.toString().trim();
         }
         return builder.toString().trim();
@@ -162,6 +201,7 @@ public final class WeeklyMessageRenderer {
             String categoryTitle,
             String emoji,
             List<UpdateEntry> entries,
+            String noEntriesText,
             int maxLength,
             boolean addLeadingSpacing
     ) {
@@ -173,7 +213,7 @@ public final class WeeklyMessageRenderer {
         }
 
         if (entries.isEmpty()) {
-            return appendWithLimit(builder, "> Keine Einträge.\n", maxLength);
+            return appendWithLimit(builder, "> " + noEntriesText + "\n", maxLength);
         }
 
         for (UpdateEntry entry : entries) {
@@ -185,17 +225,23 @@ public final class WeeklyMessageRenderer {
         return true;
     }
 
-    private String buildContainerCategoryBlock(String categoryTitle, String emoji, List<UpdateEntry> entries) {
+    private String buildContainerCategoryBlock(
+            String categoryTitle,
+            String emoji,
+            List<UpdateEntry> entries,
+            String noEntriesText,
+            String noTextLabel
+    ) {
         StringBuilder builder = new StringBuilder();
         builder.append("### ").append(emoji).append(" ").append(categoryTitle).append("\n");
         if (entries.isEmpty()) {
-            builder.append("> Keine Einträge.");
+            builder.append("> ").append(noEntriesText);
             return builder.toString();
         }
 
         boolean first = true;
         for (UpdateEntry entry : entries) {
-            String block = buildContainerEntryBlock(entry);
+            String block = buildContainerEntryBlock(entry, noTextLabel);
             if (!first) {
                 block = "\n" + block;
             }
@@ -209,15 +255,15 @@ public final class WeeklyMessageRenderer {
         return builder.toString().trim();
     }
 
-    private String buildContainerEntryBlock(UpdateEntry entry) {
-        String contentBlock = toQuoteBlock(entry.content());
+    private String buildContainerEntryBlock(UpdateEntry entry, String noTextLabel) {
+        String contentBlock = toQuoteBlock(entry.content(), noTextLabel);
         return "• **`#" + entry.id() + "`** " + formatAuthor(entry.author()) + "\n" + contentBlock;
     }
 
-    private String toQuoteBlock(String content) {
+    private String toQuoteBlock(String content, String noTextLabel) {
         String cleaned = content == null ? "" : content.replace("\r", "").trim();
         if (cleaned.isBlank()) {
-            return "> (kein Text)";
+            return "> " + noTextLabel;
         }
 
         String[] lines = cleaned.split("\n");

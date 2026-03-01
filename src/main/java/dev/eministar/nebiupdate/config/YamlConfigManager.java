@@ -54,6 +54,24 @@ public final class YamlConfigManager {
             dashboard.put("host", value(values, BotConfig.KEY_DASHBOARD_HOST));
             dashboard.put("port", parsePort(value(values, BotConfig.KEY_DASHBOARD_PORT)));
 
+            Map<String, Object> features = section(root, "features");
+            features.put("audit_enabled", bool(values, BotConfig.KEY_AUDIT_ENABLED));
+            features.put("audit_max_entries", parseInt(value(values, BotConfig.KEY_AUDIT_MAX_ENTRIES), 5000));
+            features.put("export_import_enabled", bool(values, BotConfig.KEY_EXPORT_IMPORT_ENABLED));
+            features.put("analytics_enabled", bool(values, BotConfig.KEY_ANALYTICS_ENABLED));
+            features.put("analytics_weeks", parseInt(value(values, BotConfig.KEY_ANALYTICS_WEEKS), 12));
+
+            Map<String, Object> i18n = section(root, "i18n");
+            i18n.put("enabled", bool(values, BotConfig.KEY_I18N_ENABLED));
+            i18n.put("locale", value(values, BotConfig.KEY_LOCALE));
+            i18n.put("fallback_locale", value(values, BotConfig.KEY_FALLBACK_LOCALE));
+
+            Map<String, Object> backup = section(root, "backup");
+            backup.put("enabled", bool(values, BotConfig.KEY_BACKUP_ENABLED));
+            backup.put("directory", value(values, BotConfig.KEY_BACKUP_DIRECTORY));
+            backup.put("max_files", parseInt(value(values, BotConfig.KEY_BACKUP_MAX_FILES), 20));
+            backup.put("include_audit", bool(values, BotConfig.KEY_BACKUP_INCLUDE_AUDIT));
+
             Map<String, Object> messages = section(root, "messages");
             messages.put("title_emoji", value(values, BotConfig.KEY_TITLE_EMOJI));
             messages.put("title_emoji_id", value(values, BotConfig.KEY_TITLE_EMOJI_ID));
@@ -89,6 +107,14 @@ public final class YamlConfigManager {
         }
     }
 
+    private int parseInt(String raw, int fallback) {
+        try {
+            return Integer.parseInt(raw);
+        } catch (Exception ex) {
+            return fallback;
+        }
+    }
+
     private String value(Map<String, String> values, String key) {
         return values.getOrDefault(key, "");
     }
@@ -114,6 +140,18 @@ public final class YamlConfigManager {
         if (!portRaw.isBlank()) {
             botConfig.put(BotConfig.KEY_DASHBOARD_PORT, portRaw);
         }
+        botConfig.put(BotConfig.KEY_AUDIT_ENABLED, fallback(readString(root, "features", "audit_enabled"), botConfig.get(BotConfig.KEY_AUDIT_ENABLED)));
+        botConfig.put(BotConfig.KEY_AUDIT_MAX_ENTRIES, fallback(readString(root, "features", "audit_max_entries"), botConfig.get(BotConfig.KEY_AUDIT_MAX_ENTRIES)));
+        botConfig.put(BotConfig.KEY_EXPORT_IMPORT_ENABLED, fallback(readString(root, "features", "export_import_enabled"), botConfig.get(BotConfig.KEY_EXPORT_IMPORT_ENABLED)));
+        botConfig.put(BotConfig.KEY_ANALYTICS_ENABLED, fallback(readString(root, "features", "analytics_enabled"), botConfig.get(BotConfig.KEY_ANALYTICS_ENABLED)));
+        botConfig.put(BotConfig.KEY_ANALYTICS_WEEKS, fallback(readString(root, "features", "analytics_weeks"), botConfig.get(BotConfig.KEY_ANALYTICS_WEEKS)));
+        botConfig.put(BotConfig.KEY_I18N_ENABLED, fallback(readString(root, "i18n", "enabled"), botConfig.get(BotConfig.KEY_I18N_ENABLED)));
+        botConfig.put(BotConfig.KEY_LOCALE, fallback(readString(root, "i18n", "locale"), botConfig.get(BotConfig.KEY_LOCALE)));
+        botConfig.put(BotConfig.KEY_FALLBACK_LOCALE, fallback(readString(root, "i18n", "fallback_locale"), botConfig.get(BotConfig.KEY_FALLBACK_LOCALE)));
+        botConfig.put(BotConfig.KEY_BACKUP_ENABLED, fallback(readString(root, "backup", "enabled"), botConfig.get(BotConfig.KEY_BACKUP_ENABLED)));
+        botConfig.put(BotConfig.KEY_BACKUP_DIRECTORY, fallback(readString(root, "backup", "directory"), botConfig.get(BotConfig.KEY_BACKUP_DIRECTORY)));
+        botConfig.put(BotConfig.KEY_BACKUP_MAX_FILES, fallback(readString(root, "backup", "max_files"), botConfig.get(BotConfig.KEY_BACKUP_MAX_FILES)));
+        botConfig.put(BotConfig.KEY_BACKUP_INCLUDE_AUDIT, fallback(readString(root, "backup", "include_audit"), botConfig.get(BotConfig.KEY_BACKUP_INCLUDE_AUDIT)));
 
         botConfig.put(BotConfig.KEY_TITLE_EMOJI, fallback(readString(root, "messages", "title_emoji"), botConfig.get(BotConfig.KEY_TITLE_EMOJI)));
         botConfig.put(BotConfig.KEY_TITLE_EMOJI_ID, fallback(readString(root, "messages", "title_emoji_id"), botConfig.get(BotConfig.KEY_TITLE_EMOJI_ID)));
@@ -251,6 +289,24 @@ public final class YamlConfigManager {
                   host: 0.0.0.0
                   port: 8080
                   token: ""
+
+                features:
+                  audit_enabled: true
+                  audit_max_entries: 5000
+                  export_import_enabled: true
+                  analytics_enabled: true
+                  analytics_weeks: 12
+
+                i18n:
+                  enabled: true
+                  locale: de
+                  fallback_locale: en
+
+                backup:
+                  enabled: true
+                  directory: data/backups
+                  max_files: 20
+                  include_audit: true
 
                 schedule:
                   timezone: Europe/Berlin

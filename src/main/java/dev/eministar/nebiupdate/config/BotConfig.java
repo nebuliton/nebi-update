@@ -38,6 +38,18 @@ public final class BotConfig {
     public static final String KEY_SPACER = "spacer";
     public static final String KEY_DASHBOARD_HOST = "dashboard_host";
     public static final String KEY_DASHBOARD_PORT = "dashboard_port";
+    public static final String KEY_AUDIT_ENABLED = "audit_enabled";
+    public static final String KEY_AUDIT_MAX_ENTRIES = "audit_max_entries";
+    public static final String KEY_EXPORT_IMPORT_ENABLED = "export_import_enabled";
+    public static final String KEY_ANALYTICS_ENABLED = "analytics_enabled";
+    public static final String KEY_ANALYTICS_WEEKS = "analytics_weeks";
+    public static final String KEY_I18N_ENABLED = "i18n_enabled";
+    public static final String KEY_LOCALE = "locale";
+    public static final String KEY_FALLBACK_LOCALE = "fallback_locale";
+    public static final String KEY_BACKUP_ENABLED = "backup_enabled";
+    public static final String KEY_BACKUP_DIRECTORY = "backup_directory";
+    public static final String KEY_BACKUP_MAX_FILES = "backup_max_files";
+    public static final String KEY_BACKUP_INCLUDE_AUDIT = "backup_include_audit";
 
     private static final Map<String, String> DEFAULTS = createDefaults();
     private static final Set<String> SUPPORTED_KEYS = DEFAULTS.keySet();
@@ -68,6 +80,18 @@ public final class BotConfig {
     private final String spacer;
     private final String dashboardHost;
     private final int dashboardPort;
+    private final boolean auditEnabled;
+    private final int auditMaxEntries;
+    private final boolean exportImportEnabled;
+    private final boolean analyticsEnabled;
+    private final int analyticsWeeks;
+    private final boolean i18nEnabled;
+    private final String locale;
+    private final String fallbackLocale;
+    private final boolean backupEnabled;
+    private final String backupDirectory;
+    private final int backupMaxFiles;
+    private final boolean backupIncludeAudit;
 
     private BotConfig(
             String guildId,
@@ -95,7 +119,19 @@ public final class BotConfig {
             String noChangeText,
             String spacer,
             String dashboardHost,
-            int dashboardPort
+            int dashboardPort,
+            boolean auditEnabled,
+            int auditMaxEntries,
+            boolean exportImportEnabled,
+            boolean analyticsEnabled,
+            int analyticsWeeks,
+            boolean i18nEnabled,
+            String locale,
+            String fallbackLocale,
+            boolean backupEnabled,
+            String backupDirectory,
+            int backupMaxFiles,
+            boolean backupIncludeAudit
     ) {
         this.guildId = guildId;
         this.channelId = channelId;
@@ -123,6 +159,18 @@ public final class BotConfig {
         this.spacer = spacer;
         this.dashboardHost = dashboardHost;
         this.dashboardPort = dashboardPort;
+        this.auditEnabled = auditEnabled;
+        this.auditMaxEntries = auditMaxEntries;
+        this.exportImportEnabled = exportImportEnabled;
+        this.analyticsEnabled = analyticsEnabled;
+        this.analyticsWeeks = analyticsWeeks;
+        this.i18nEnabled = i18nEnabled;
+        this.locale = locale;
+        this.fallbackLocale = fallbackLocale;
+        this.backupEnabled = backupEnabled;
+        this.backupDirectory = backupDirectory;
+        this.backupMaxFiles = backupMaxFiles;
+        this.backupIncludeAudit = backupIncludeAudit;
     }
 
     private static Map<String, String> createDefaults() {
@@ -153,6 +201,18 @@ public final class BotConfig {
         defaults.put(KEY_SPACER, " ");
         defaults.put(KEY_DASHBOARD_HOST, "0.0.0.0");
         defaults.put(KEY_DASHBOARD_PORT, "8080");
+        defaults.put(KEY_AUDIT_ENABLED, "true");
+        defaults.put(KEY_AUDIT_MAX_ENTRIES, "5000");
+        defaults.put(KEY_EXPORT_IMPORT_ENABLED, "true");
+        defaults.put(KEY_ANALYTICS_ENABLED, "true");
+        defaults.put(KEY_ANALYTICS_WEEKS, "12");
+        defaults.put(KEY_I18N_ENABLED, "true");
+        defaults.put(KEY_LOCALE, "de");
+        defaults.put(KEY_FALLBACK_LOCALE, "en");
+        defaults.put(KEY_BACKUP_ENABLED, "true");
+        defaults.put(KEY_BACKUP_DIRECTORY, "data/backups");
+        defaults.put(KEY_BACKUP_MAX_FILES, "20");
+        defaults.put(KEY_BACKUP_INCLUDE_AUDIT, "true");
         return Map.copyOf(defaults);
     }
 
@@ -187,6 +247,21 @@ public final class BotConfig {
         if (dashboardHost.isBlank()) {
             dashboardHost = "0.0.0.0";
         }
+        boolean auditEnabled = parseBoolean(source.get(KEY_AUDIT_ENABLED));
+        int auditMaxEntries = parsePositiveInt(normalize(source.get(KEY_AUDIT_MAX_ENTRIES)), 100, 1_000_000, KEY_AUDIT_MAX_ENTRIES);
+        boolean exportImportEnabled = parseBoolean(source.get(KEY_EXPORT_IMPORT_ENABLED));
+        boolean analyticsEnabled = parseBoolean(source.get(KEY_ANALYTICS_ENABLED));
+        int analyticsWeeks = parsePositiveInt(normalize(source.get(KEY_ANALYTICS_WEEKS)), 1, 260, KEY_ANALYTICS_WEEKS);
+        boolean i18nEnabled = parseBoolean(source.get(KEY_I18N_ENABLED));
+        String locale = normalizeLocale(source.get(KEY_LOCALE), "de");
+        String fallbackLocale = normalizeLocale(source.get(KEY_FALLBACK_LOCALE), "en");
+        boolean backupEnabled = parseBoolean(source.get(KEY_BACKUP_ENABLED));
+        String backupDirectory = normalize(source.get(KEY_BACKUP_DIRECTORY));
+        if (backupDirectory.isBlank()) {
+            backupDirectory = "data/backups";
+        }
+        int backupMaxFiles = parsePositiveInt(normalize(source.get(KEY_BACKUP_MAX_FILES)), 1, 500, KEY_BACKUP_MAX_FILES);
+        boolean backupIncludeAudit = parseBoolean(source.get(KEY_BACKUP_INCLUDE_AUDIT));
 
         return new BotConfig(
                 normalize(source.get(KEY_GUILD_ID)),
@@ -214,7 +289,19 @@ public final class BotConfig {
                 normalize(source.get(KEY_NO_CHANGE_TEXT)),
                 normalize(source.get(KEY_SPACER)),
                 dashboardHost,
-                dashboardPort
+                dashboardPort,
+                auditEnabled,
+                auditMaxEntries,
+                exportImportEnabled,
+                analyticsEnabled,
+                analyticsWeeks,
+                i18nEnabled,
+                locale,
+                fallbackLocale,
+                backupEnabled,
+                backupDirectory,
+                backupMaxFiles,
+                backupIncludeAudit
         );
     }
 
@@ -234,6 +321,18 @@ public final class BotConfig {
         return value == null ? "" : value.trim();
     }
 
+    private static int parsePositiveInt(String value, int min, int max, String key) {
+        try {
+            int parsed = Integer.parseInt(value);
+            if (parsed < min || parsed > max) {
+                throw new IllegalArgumentException(key + " must be between " + min + " and " + max);
+            }
+            return parsed;
+        } catch (NumberFormatException ex) {
+            throw new IllegalArgumentException("Invalid " + key + ": " + value);
+        }
+    }
+
     private static boolean parseBoolean(String value) {
         String normalized = normalize(value).toLowerCase(Locale.ROOT);
         return normalized.equals("true")
@@ -241,6 +340,17 @@ public final class BotConfig {
                 || normalized.equals("yes")
                 || normalized.equals("ja")
                 || normalized.equals("on");
+    }
+
+    private static String normalizeLocale(String raw, String fallback) {
+        String locale = normalize(raw).toLowerCase(Locale.ROOT);
+        if (locale.isBlank()) {
+            return fallback;
+        }
+        if (locale.equals("de") || locale.equals("en")) {
+            return locale;
+        }
+        throw new IllegalArgumentException("Unsupported locale: " + raw + " (allowed: de, en)");
     }
 
     private static String normalizeScheduleTime(String value) {
@@ -305,6 +415,18 @@ public final class BotConfig {
         map.put(KEY_SPACER, spacer);
         map.put(KEY_DASHBOARD_HOST, dashboardHost);
         map.put(KEY_DASHBOARD_PORT, Integer.toString(dashboardPort));
+        map.put(KEY_AUDIT_ENABLED, Boolean.toString(auditEnabled));
+        map.put(KEY_AUDIT_MAX_ENTRIES, Integer.toString(auditMaxEntries));
+        map.put(KEY_EXPORT_IMPORT_ENABLED, Boolean.toString(exportImportEnabled));
+        map.put(KEY_ANALYTICS_ENABLED, Boolean.toString(analyticsEnabled));
+        map.put(KEY_ANALYTICS_WEEKS, Integer.toString(analyticsWeeks));
+        map.put(KEY_I18N_ENABLED, Boolean.toString(i18nEnabled));
+        map.put(KEY_LOCALE, locale);
+        map.put(KEY_FALLBACK_LOCALE, fallbackLocale);
+        map.put(KEY_BACKUP_ENABLED, Boolean.toString(backupEnabled));
+        map.put(KEY_BACKUP_DIRECTORY, backupDirectory);
+        map.put(KEY_BACKUP_MAX_FILES, Integer.toString(backupMaxFiles));
+        map.put(KEY_BACKUP_INCLUDE_AUDIT, Boolean.toString(backupIncludeAudit));
         return map;
     }
 
@@ -410,5 +532,53 @@ public final class BotConfig {
 
     public int dashboardPort() {
         return dashboardPort;
+    }
+
+    public boolean auditEnabled() {
+        return auditEnabled;
+    }
+
+    public int auditMaxEntries() {
+        return auditMaxEntries;
+    }
+
+    public boolean exportImportEnabled() {
+        return exportImportEnabled;
+    }
+
+    public boolean analyticsEnabled() {
+        return analyticsEnabled;
+    }
+
+    public int analyticsWeeks() {
+        return analyticsWeeks;
+    }
+
+    public boolean i18nEnabled() {
+        return i18nEnabled;
+    }
+
+    public String locale() {
+        return locale;
+    }
+
+    public String fallbackLocale() {
+        return fallbackLocale;
+    }
+
+    public boolean backupEnabled() {
+        return backupEnabled;
+    }
+
+    public String backupDirectory() {
+        return backupDirectory;
+    }
+
+    public int backupMaxFiles() {
+        return backupMaxFiles;
+    }
+
+    public boolean backupIncludeAudit() {
+        return backupIncludeAudit;
     }
 }

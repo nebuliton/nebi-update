@@ -5,6 +5,8 @@ import dev.eministar.nebiupdate.config.ConfigService;
 import dev.eministar.nebiupdate.config.StartupSettings;
 import dev.eministar.nebiupdate.config.YamlConfigManager;
 import dev.eministar.nebiupdate.console.ConsoleCommandLoop;
+import dev.eministar.nebiupdate.audit.AuditRepository;
+import dev.eministar.nebiupdate.audit.AuditService;
 import dev.eministar.nebiupdate.data.Database;
 import dev.eministar.nebiupdate.data.UpdateRepository;
 import dev.eministar.nebiupdate.discord.DiscordGateway;
@@ -12,6 +14,7 @@ import dev.eministar.nebiupdate.runtime.SingleInstanceLock;
 import dev.eministar.nebiupdate.discord.WeeklyMessageRenderer;
 import dev.eministar.nebiupdate.scheduler.WeeklyScheduler;
 import dev.eministar.nebiupdate.time.WeekService;
+import dev.eministar.nebiupdate.transfer.DataPortService;
 import dev.eministar.nebiupdate.web.DashboardServer;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -48,10 +51,13 @@ public final class Main {
         ConfigService configService = new ConfigService(database, yamlConfigManager::saveBotConfig);
         BotConfig config = configService.initialize(startupSettings.botConfig());
         UpdateRepository updateRepository = new UpdateRepository(database);
+        AuditRepository auditRepository = new AuditRepository(database);
+        AuditService auditService = new AuditService(configService, auditRepository);
+        DataPortService dataPortService = new DataPortService(configService, updateRepository, auditRepository);
         WeekService weekService = new WeekService();
         WeeklyMessageRenderer renderer = new WeeklyMessageRenderer();
 
-        DiscordGateway discordGateway = new DiscordGateway(token, configService, updateRepository, weekService, renderer);
+        DiscordGateway discordGateway = new DiscordGateway(token, configService, updateRepository, weekService, renderer, auditService);
         WeeklyScheduler scheduler = new WeeklyScheduler(configService, updateRepository, weekService, discordGateway);
         DashboardServer dashboardServer = new DashboardServer(
                 configService,
@@ -59,9 +65,11 @@ public final class Main {
                 weekService,
                 renderer,
                 discordGateway,
-                dashboardToken
+                dashboardToken,
+                auditService,
+                dataPortService
         );
-        ConsoleCommandLoop consoleLoop = new ConsoleCommandLoop(configService, updateRepository, weekService, discordGateway);
+        ConsoleCommandLoop consoleLoop = new ConsoleCommandLoop(configService, updateRepository, weekService, discordGateway, auditService);
 
         Runtime.getRuntime().addShutdownHook(new Thread(() -> {
             LOGGER.info("Shutdown signal received");

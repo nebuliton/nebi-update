@@ -2,6 +2,7 @@ package dev.eministar.nebiupdate.console;
 
 import dev.eministar.nebiupdate.config.BotConfig;
 import dev.eministar.nebiupdate.config.ConfigService;
+import dev.eministar.nebiupdate.audit.AuditService;
 import dev.eministar.nebiupdate.data.UpdateRepository;
 import dev.eministar.nebiupdate.discord.DiscordGateway;
 import dev.eministar.nebiupdate.logging.ErrorLogger;
@@ -36,6 +37,7 @@ public final class ConsoleCommandLoop implements AutoCloseable {
     private final UpdateRepository updateRepository;
     private final WeekService weekService;
     private final DiscordGateway discordGateway;
+    private final AuditService auditService;
     private final Map<String, CommandSpec> commandIndex = new LinkedHashMap<>();
     private final List<CommandSpec> commandList = new ArrayList<>();
     private final boolean ansiEnabled;
@@ -47,12 +49,14 @@ public final class ConsoleCommandLoop implements AutoCloseable {
             ConfigService configService,
             UpdateRepository updateRepository,
             WeekService weekService,
-            DiscordGateway discordGateway
+            DiscordGateway discordGateway,
+            AuditService auditService
     ) {
         this.configService = configService;
         this.updateRepository = updateRepository;
         this.weekService = weekService;
         this.discordGateway = discordGateway;
+        this.auditService = auditService;
         this.ansiEnabled = resolveAnsiEnabled();
         registerCommands();
     }
@@ -110,6 +114,14 @@ public final class ConsoleCommandLoop implements AutoCloseable {
     private void applyConfigUpdate(String key, String value) {
         try {
             configService.updateFromMap(Map.of(key, value));
+            auditService.log(
+                    "console",
+                    "console",
+                    "config.update",
+                    "config",
+                    key,
+                    Map.of("value", value)
+            );
             printSuccess("Config aktualisiert: " + key + "=" + value);
         } catch (Exception ex) {
             printError("Config-Update fehlgeschlagen: " + ex.getMessage());
@@ -187,6 +199,7 @@ public final class ConsoleCommandLoop implements AutoCloseable {
                 "Wochen-Nachricht sofort synchronisieren",
                 input -> {
                     discordGateway.requestSyncCurrentWeek(true);
+                    auditService.log("console", "console", "weekly.sync", "weekly_message", "current_week", Map.of());
                     printSuccess("Sync ausgelöst.");
                 }
         ));
@@ -197,6 +210,7 @@ public final class ConsoleCommandLoop implements AutoCloseable {
                 "Test-Nachricht senden",
                 input -> {
                     discordGateway.requestSendTestCurrentWeek();
+                    auditService.log("console", "console", "weekly.test", "weekly_message", "current_week", Map.of());
                     printSuccess("Test-Nachricht wird gesendet.");
                 }
         ));
@@ -227,6 +241,7 @@ public final class ConsoleCommandLoop implements AutoCloseable {
                 "Slash-Commands neu registrieren",
                 input -> {
                     discordGateway.registerSlashCommands();
+                    auditService.log("console", "console", "commands.reregister", "discord", "slash_commands", Map.of());
                     printSuccess("Slash-Commands neu registriert.");
                 }
         ));
