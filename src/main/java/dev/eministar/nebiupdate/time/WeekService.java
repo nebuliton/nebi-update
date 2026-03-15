@@ -15,8 +15,20 @@ public final class WeekService {
     public WeekWindow currentWeek(BotConfig config) {
         ZoneId zoneId = ZoneId.of(config.timezone());
         LocalDate today = LocalDate.now(zoneId);
-        LocalDate weekStart = today.with(TemporalAdjusters.previousOrSame(DayOfWeek.MONDAY));
+        return weekForDate(today);
+    }
+
+    public WeekWindow previousWeek(BotConfig config) {
+        return weekFromStart(currentWeek(config).start().minusWeeks(1));
+    }
+
+    public WeekWindow weekFromStart(LocalDate weekStart) {
         return new WeekWindow(weekStart, weekStart.plusDays(6));
+    }
+
+    public WeekWindow weekForDate(LocalDate date) {
+        LocalDate weekStart = date.with(TemporalAdjusters.previousOrSame(DayOfWeek.MONDAY));
+        return weekFromStart(weekStart);
     }
 
     public ZonedDateTime scheduledDateTime(WeekWindow week, BotConfig config) {

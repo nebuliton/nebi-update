@@ -51,20 +51,23 @@ public final class WeeklyScheduler implements AutoCloseable {
                 return;
             }
             BotConfig config = configService.get();
-            WeekWindow week = weekService.currentWeek(config);
-            if (!weekService.isScheduleReached(week, config)) {
-                return;
-            }
-
-            if (updateRepository.findWeeklyMessageId(week.start()).isPresent()) {
-                return;
-            }
-
-            LOGGER.info("Schedule reached for week {}, creating initial weekly message", week.start());
-            discordGateway.requestSyncCurrentWeek(false);
+            syncMissingWeekIfDue(weekService.previousWeek(config), config);
+            syncMissingWeekIfDue(weekService.currentWeek(config), config);
         } catch (Exception ex) {
             ErrorLogger.capture(LOGGER, "SCHEDULER", "Scheduler tick failed", ex);
         }
+    }
+
+    private void syncMissingWeekIfDue(WeekWindow week, BotConfig config) {
+        if (!weekService.isScheduleReached(week, config)) {
+            return;
+        }
+        if (updateRepository.findWeeklyMessageId(week.start()).isPresent()) {
+            return;
+        }
+
+        LOGGER.info("Schedule reached for week {}, creating missing weekly message", week.start());
+        discordGateway.requestSyncWeek(week.start(), false);
     }
 
     @Override

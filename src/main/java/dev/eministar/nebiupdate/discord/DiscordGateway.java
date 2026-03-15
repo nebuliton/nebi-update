@@ -25,6 +25,7 @@ import net.dv8tion.jda.api.requests.ErrorResponse;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.time.LocalDate;
 import java.util.List;
 import java.util.Optional;
 import java.util.concurrent.ExecutorService;
@@ -135,6 +136,10 @@ public final class DiscordGateway implements AutoCloseable {
         worker.submit(() -> syncCurrentWeek(forceCreate));
     }
 
+    public void requestSyncWeek(LocalDate weekStart, boolean forceCreate) {
+        worker.submit(() -> syncWeek(weekStart, forceCreate));
+    }
+
     public void requestSendTestCurrentWeek() {
         worker.submit(this::sendTestCurrentWeek);
     }
@@ -178,11 +183,16 @@ public final class DiscordGateway implements AutoCloseable {
     }
 
     public synchronized void syncCurrentWeek(boolean forceCreate) {
+        BotConfig config = configService.get();
+        syncWeek(weekService.currentWeek(config).start(), forceCreate);
+    }
+
+    public synchronized void syncWeek(LocalDate weekStart, boolean forceCreate) {
         if (jda == null) {
             return;
         }
         BotConfig config = configService.get();
-        WeekWindow week = weekService.currentWeek(config);
+        WeekWindow week = weekService.weekFromStart(weekStart);
         if (config.channelId().isBlank()) {
             LOGGER.warn("channel_id is empty. Skip weekly sync.");
             return;
